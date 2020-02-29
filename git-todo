@@ -1,0 +1,56 @@
+#!/usr/bin/python
+
+import os
+import re
+
+from enum import Enum
+
+class ToDoStatus(Enum):
+    NEW = "new"
+    OPEN = "open"
+    IN_PROGRESS = "in progress"
+    COMPLETE = "complete"
+    CANCELLED = "cancelled"
+
+status = {
+        "new" : '+',
+        "open" : ' ',
+        "in progress" : '-',
+        'complete' : 'X',
+        'cancelled' : '/'
+        }
+
+class ToDo(object):
+    def __init__(self, description, status = '+', priority = 0, branch = None):
+        self._status = status
+        self._desc = description
+        self._branch = branch
+        self._priority = priority
+
+    def __str__(self):
+        #return f'\[{self._status}\] P{self._priority} {self._desc}'
+        return '[{}] P{} {}'.format(self._status, self._priority, self._desc)
+
+    @classmethod
+    def from_str(cls, string):
+        expr = re.match("^\[(?P<status>[\+ -/X])\] P(?P<priority>\d+) (?P<desc>.*)$", string)
+        todo = cls(description = expr.group('desc'), status = expr.group('status'),
+                priority = expr.group('priority'))
+        print(todo)
+        return todo
+
+
+def get_todo_file():
+    todo_file = os.path.join(os.popen('git rev-parse --show-toplevel').read().strip(), '.todo')
+    print todo_file
+    return todo_file
+
+if __name__ == '__main__':
+    fname = get_todo_file()
+
+    todos = [ ]
+
+    with open(fname, 'rw') as f:
+        for line in f:
+            todos.append(ToDo.from_str(line))
+
