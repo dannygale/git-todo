@@ -1,7 +1,10 @@
 #!/usr/bin/python
 
+from datetime import datetime
 import os
 import re
+import argparse
+import sys
 
 from enum import Enum
 
@@ -12,7 +15,7 @@ class ToDoStatus(Enum):
     COMPLETE = "complete"
     CANCELLED = "cancelled"
 
-status = {
+status_symbols = {
         "new" : '+',
         "open" : ' ',
         "in progress" : '-',
@@ -20,37 +23,150 @@ status = {
         'cancelled' : '/'
         }
 
+# invert the status_symbols dictionary for getting status from the symbol
+status_lookup = dict([[v,k] for k,v in status_symbols.items()])
+
+
 class ToDo(object):
-    def __init__(self, description, status = '+', priority = 0, branch = None):
+    def __init__(self, description, status = '+', priority = 0, branch = None, due = None,
+            created = None, updated = None):
         self._status = status
         self._desc = description
         self._branch = branch
         self._priority = priority
+        self._due = due
+        self._created = created if created else datetime.now()
+        self._updated = updated if updated else self._created
 
     def __str__(self):
         #return f'\[{self._status}\] P{self._priority} {self._desc}'
-        return '[{}] P{} {}'.format(self._status, self._priority, self._desc)
+        return '[{}] P{} {}'.format(status_symbols[self._status], self._priority, self._desc)
 
     @classmethod
     def from_str(cls, string):
         expr = re.match("^\[(?P<status>[\+ -/X])\] P(?P<priority>\d+) (?P<desc>.*)$", string)
-        todo = cls(description = expr.group('desc'), status = expr.group('status'),
+        status = status_lookup[expr.group('status')]
+        todo = cls(description = expr.group('desc'), status = status,
                 priority = expr.group('priority'))
-        print(todo)
         return todo
 
+class ToDoList(object):
+    def __init__(self, 
+            path = os.path.join(os.popen('git rev-parse --show-toplevel').read().strip(), '.todo')):
+        self._path = path
+        self._todos = [ ]
 
-def get_todo_file():
-    todo_file = os.path.join(os.popen('git rev-parse --show-toplevel').read().strip(), '.todo')
-    print todo_file
-    return todo_file
+        parser = argparse.ArgumentParser()
+        parser.add_argument('command', help='Subcommand to run', choices = [
+            'add', 'list', 'scan', 'finish', 'workon' ])
+        args = parser.parse_args(sys.argv[1:2])
+        method = 'git_todo_'+args.command
+        if not hasattr(self, method):
+            print("Unrecognized command: {}".format(args.command))
+            parser.print_help()
+            exit(1)
+
+        getattr(self, method)()
+
+    def git_todo_add(self):
+        parser = argparse.ArgumentParser(description = "Add a new todo item")
+        parser.add_argument('--branch')
+        args = parser.parse_args(sys.argv[2:])
+        
+
+    def git_todo_list(self):
+        parser = argparse.ArgumentParser(description = "Add a new todo item")
+        parser.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'complete', 'cancelled', 'closed'])
+        group.add_argument('--new', action = 'store_true')
+        group.add_argument('--open', action = 'store_true')
+        group.add_argument('--in-progress', action = 'store_true')
+        group.add_argument('--complete', action = 'store_true')
+        group.add_argument('--cancelled', action = 'store_true')
+        group.add_argument('--closed', action = 'store_true')
+
+        args = parser.parse_args(sys.argv[2:])
+
+        todos = self.read_todos()
+
+        if args.show == 'closed':
+            todos = [ t for t in todos if ((t._status == 'cancelled') or 
+                    (t._status == 'complete')) ]
+        elif args.show:
+            todos = [ t for t in todos if t._status == args.show ]
+        # shortcuts for --show <status>
+        elif args.new:
+            todos = [ t for t in todos if t._status == 'new' ]
+        elif args.open:
+          todos = [ t for t in todos if t._status == 'open' ]
+        elif args.in_progress:
+          todos = [ t for t in todos if t._status == 'in-progress' ]
+        elif args.complete:
+          todos = [ t for t in todos if t._status == 'complete' ]
+        elif args.cancelled:
+          todos = [ t for t in todos if t._status == 'cancelled' ]
+        elif args.closed:
+            todos = [ t for t in todos if ((t._status == 'cancelled') or 
+                    (t._status == 'complete')) ]
+
+        if hasattr(args, 'sort'):
+            if args.sort == 'priority':
+                todos = sorted(todos, key = lambda t: t._priority)
+            elif args.sort == 'created':
+                todos = sorted(todos, key = lambda t: t._created)
+            elif args.sort == 'updated':
+                todos = sorted(todos, key = lambda t: t._updated)
+            elif args.sort == 'status':
+                todos = sorted(todos, key = lambda t: t._status)
+
+        for todo in todos:
+            print(todo)
+
+    def git_todo_scan(self):
+        parser = argparse.ArgumentParser(description = "Scan source tree for TODO items")
+        parser.add_argument('--ignore')
+        parser.add_argument('--ignore-from')
+        parser.add_argument('--in-place', description = "Track todo items in-place in the source files where they're found")
+
+        args = parser.parse_args(sys.argv[2:])
+
+    def git_todo_finish(self):
+        parser = argparse.ArgumentParser(description = "Mark a todo item complete")
+
+        args = parser.parse_args(sys.argv[2:])
+
+    def git_todo_cancel(self):
+        parser = argparse.ArgumentParser(description = "Mark a todo item cancelled")
+
+        args = parser.parse_args(sys.argv[2:])
+
+
+    @property
+    def path(self):
+        return self._path
+
+    def write_todos(self):
+        with open(self._path, 'w') as f:
+            for t in todos:
+                f.write(str(t))
+
+    def read_todos(self):
+        self._todos = [ ]
+        with open(self._path, 'r') as f:
+            for line in f:
+                self._todos.append(ToDo.from_str(line))
+
+        return self._todos
+
+    def add_todo(self, todo):
+        self.todos.append(todo)
+        return self.todos
+
+    def __iter__(self):
+        return iter(self._todos)
 
 if __name__ == '__main__':
-    fname = get_todo_file()
+    ToDoList()
 
-    todos = [ ]
-
-    with open(fname, 'rw') as f:
-        for line in f:
-            todos.append(ToDo.from_str(line))
 
