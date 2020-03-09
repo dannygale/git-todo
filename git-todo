@@ -8,6 +8,7 @@ import sys
 import fileinput
 import json
 from pprint import pprint, pformat
+import logging
 
 from enum import Enum
 
@@ -122,15 +123,25 @@ class ToDoList(object):
         self._todos = todos
 
         parser = argparse.ArgumentParser()
+        parser.add_argument('-d', '--debug', help='Debug mode', action='store_true')
+
         parser.add_argument('command', help='Subcommand to run', choices = [
             'add', 'edit', 'list', 'scan', 'finish', 'workon' ])
-        args = parser.parse_args(sys.argv[1:2])
+        #args = parser.parse_args(sys.argv[1:2])
+        args = parser.parse_args()
+
+        self._debug = args.debug
+        self.logger = logging.getLogger('git-todo')
+        if self._debug: self.logger.setLevel(logging.DEBUG)
+        else: self.logger.setLevel(logging.INFO)
+
+        self.logger.debug(args)
 
         self.read_todos()
 
         method = 'git_todo_'+args.command
         if not hasattr(self, method):
-            print("Unrecognized command: {}".format(args.command))
+            self.logger.error("Unrecognized command: {}".format(args.command))
             parser.print_help()
             exit(1)
 
@@ -166,6 +177,8 @@ class ToDoList(object):
         parser.add_argument('-d','--description', help='set the description')
         parser.add_argument('-s','--status', help='set the status', choices = status_symbols.keys())
         parser.add_argument('--due', help='set the due date')
+        parser.add_argument('-c', '--category', help='set the category')
+        parser.add_argument('-b', '--branch', help='set the branch')
         args = parser.parse_args(sys.argv[2:])
 
         t = self.get_todo(args.uuid)
@@ -173,6 +186,9 @@ class ToDoList(object):
         if args.priority: t._priority = int(args.priority)
         if args.description: t._desc = args.description
         if args.status: t._status = args.status
+        if args.due: t._due = datetime.fromisoformat(args.due)
+        if args.category: t._category = category # TODO: check if category exists
+        if args.branch: t._branch = branch # TODO: check if branch exists
     
         self.write_todos()
         
@@ -225,14 +241,25 @@ class ToDoList(object):
         for todo in todos.values():
             print(todo)
 
+    def _scan_file(self, fname):
+        pass
+
     def git_todo_scan(self):
         parser = argparse.ArgumentParser(description = "Scan source tree for TODO items")
-        parser.add_argument('--ignore')
-        parser.add_argument('--ignore-from')
+        parser.add_argument('-f', '--file', help = 'Scan a specific file')
+        parser.add_argument('-i', '--ignore', help = 'Ignore a specific file or pattern')
+        parser.add_argument('--ignore-from', help = 'ignore from specified file. Follows .gitignore glob syntax')
         parser.add_argument('--inplace', help = "Track todo items in-place in the source files where they're found",
                 action='store_true')
 
         args = parser.parse_args(sys.argv[2:])
+
+        if args.ignore_from: ignore_from = parse_gitignore(args.ignore_from)
+        if args.file: 
+            try: self._scan_file(os.path.join(os.getcwd(), args.file))
+            except: pass
+            try: self._scan_file(os.path.join(self._root, args.file))
+            except: pass
     
         gitignore = os.path.join(self._root, '.gitignore')
         gitignore = parse_gitignore(gitignore)
@@ -241,18 +268,20 @@ class ToDoList(object):
         for dirpath, subdirs, fnames in os.walk(self._root):
             for fname in fnames:
                 path = os.path.join(dirpath,fname)
+                self.logger.debug(f"Scanning {path}")
                 # if we're ignoring this file, skip it
                 if gitignore(path) or fname == '.gitignore' or path == self.path or \
                         path == os.path.abspath(__file__) or fname.startswith('.'):
+                    self.logger.debug(f"Skipping {path}")
                     continue
 
-                #print(f"scanning {path}")
                 if args.inplace:
                     with fileinput.input(files = (path), inplace=True) as f:
                         for line in f:
                             match = TODO_REGEX.search(line)
                             if match:
                                 # found one!
+                                self.logger.debug(f"Found match at {f.filelineno()}")
                                 if match.group('status') == None: # it's new
                                     symbol = '+' 
                                 elif match.group('status') == '+': # it was new last time
@@ -265,6 +294,7 @@ class ToDoList(object):
                                         uuid = match.group('uuid') if match.group('uuid') else None,
                                         loc = (path, f.filelineno())
                                         )
+                                self.logger.debug(f"Created todo: {t}")
                                 self._todos[t.uuid] = t
                                 # fileinput redirects standard output to the file
                                 # replace the text that generated the ToDo in place
@@ -274,16 +304,17 @@ class ToDoList(object):
                             print(line.replace('\n',''))
                 else:
                     with open(path) as f:
-                        for line in f.readlines():
+                        for index,line in enumerate(f.readlines()):
                             match = TODO_REGEX.search(line)
                             if match:
                                 # found one!
+                                self.logger.debug(f"Found match at {index}")
                                 t = ToDo(description = match.group('desc'), 
                                         status = status_lookup[match.group('status')] \
                                                 if match.group('status') else 'new'
                                                 )
+                                self.logger.debug(f"Created todo: {t}")
                                 self._todos[t.uuid] = t
-                                print(f"found: {match}, replaced with {str(t)}")
                                
 
         self.write_todos()
