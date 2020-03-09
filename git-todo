@@ -176,7 +176,11 @@ class ToDoList(object):
 
         self.read_todos()
         
-        args.func(args)
+        if hasattr(args, 'func'):
+            args.func(args)
+        else:
+            args = parser.parse_args("list".split())
+            self.git_todo_list(args)
 
     def add_todo(self, todo):
         if todo.uuid in self._todos:
