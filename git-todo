@@ -23,7 +23,7 @@ class ToDoStatus(Enum):
 status_symbols = {
         "new" : '+',
         "open" : ' ',
-        "in progress" : '-',
+        "in-progress" : '-',
         'complete' : 'X',
         'cancelled' : '/'
         }
@@ -43,8 +43,17 @@ TODO_REGEX_STR = "(?P<comment>[#|/{2}])+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[
 TODO_REGEX = re.compile(TODO_REGEX_STR)
 
 class ToDo(object):
-    def __init__(self, description, status = 'new', priority = 0, branch = None, due = None,
-            created = None, updated = None, uuid = None, loc = None):
+    def __init__(self, description, 
+            status = 'new', 
+            priority = 0, 
+            branch = None, 
+            due = None,
+            created = None, 
+            updated = None, 
+            uuid = None, 
+            loc = None,
+            category = None):
+
         self._status = status
         self._desc = description
         self._branch = branch
@@ -52,8 +61,8 @@ class ToDo(object):
         self._due = due
         self._created = created if created else datetime.now()
         self._updated = updated if updated else self._created
-
         self._loc = loc
+        self._category = category
 
         self._uuid = uuid if uuid else self.uuid
 
@@ -133,14 +142,20 @@ class ToDoList(object):
         self._todos[todo.uuid] = todo
         self.write_todos()
 
+    def get_todo(self, uuid):
+        try:
+            return self._todos[uuid]
+        except KeyError as e:
+            print(f"uuid {uuid} does not exist")
+            return None
+
     def git_todo_add(self):
         parser = argparse.ArgumentParser(description = "Add a new todo item")
         parser.add_argument('--branch')
         parser.add_argument('-p', '--priority', help='Priority number for the new todo')
         parser.add_argument('description', help='The description of the todo item')
         args = parser.parse_args(sys.argv[2:])
-
-        print(args)
+    
         t = ToDo(args.description, priority=int(args.priority) if args.priority else 0)
         self.add_todo(t)
         
@@ -151,25 +166,15 @@ class ToDoList(object):
         parser.add_argument('-d','--description', help='set the description')
         parser.add_argument('-s','--status', help='set the status', choices = status_symbols.keys())
         parser.add_argument('--due', help='set the due date')
-
         args = parser.parse_args(sys.argv[2:])
-        print(args)
 
-        try:
-            t = self._todos[args.uuid]
-        except KeyError as e:
-            print(f"Could not get existing todo item {args.uuid}")
-            return
-
-        if args.priority:
-            t._priority = int(args.priority)
-        if args.description:
-            t._desc = args.description
-        if args.status:
-            t._status = args.status
-
+        t = self.get_todo(args.uuid)
+    
+        if args.priority: t._priority = int(args.priority)
+        if args.description: t._desc = args.description
+        if args.status: t._status = args.status
+    
         self.write_todos()
-
         
     def git_todo_list(self):
         parser = argparse.ArgumentParser(description = "Add a new todo item")
@@ -285,16 +290,28 @@ class ToDoList(object):
 
     def git_todo_finish(self):
         parser = argparse.ArgumentParser(description = "Mark a todo item complete")
+        parser.add_argument('uuid', help='uuid of todo item to work on')
         args = parser.parse_args(sys.argv[2:])
+        t = self.get_todo(args.uuid)
+        
+        t._status = 'finished'
+        self.write_todos()
 
     def git_todo_cancel(self):
         parser = argparse.ArgumentParser(description = "Mark a todo item cancelled")
+        parser.add_argument('uuid', help='uuid of todo item to work on')
         args = parser.parse_args(sys.argv[2:])
+        t = self.get_todo(args.uuid)
+        t._status = 'cancelled'
+        self.write_todos()
 
     def git_todo_workon(self):
         parser = argparse.ArgumentParser(description = "Mark a todo item as in progress")
+        parser.add_argument('uuid', help='uuid of todo item to work on')
         args = parser.parse_args(sys.argv[2:])
-
+        t = self.get_todo(args.uuid)
+        t._status = 'in-progress'
+        self.write_todos()
 
     @property
     def path(self):
