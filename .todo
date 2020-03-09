@@ -1,5 +1,76 @@
-[+] P0 test1
-[ ] P1 test2
-[X] P2 test3
-[/] P3 test4
-[-] P4 test5
+{
+    "ae37c870": {
+        "status": "open",
+        "desc": "this is a new todo",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658936",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            1
+        ],
+        "uuid": "ae37c870"
+    },
+    "5da7594a": {
+        "status": "in-progress",
+        "desc": "testing // this should never happen",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658960",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            2
+        ],
+        "uuid": "5da7594a"
+    },
+    "a539fa96": {
+        "status": "in-progress",
+        "desc": "[ ] this is test // neither should this",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658967",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            3
+        ],
+        "uuid": "a539fa96"
+    },
+    "5f0e8807": {
+        "status": "open",
+        "desc": "this is also a test",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658974",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            4
+        ],
+        "uuid": "5f0e8807"
+    },
+    "939190cc": {
+        "status": "open",
+        "desc": "make sure this works",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658981",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            5
+        ],
+        "uuid": "939190cc"
+    },
+    "bbacd150": {
+        "status": "open",
+        "desc": "this is a new todo item",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.658996",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/testfile",
+            6
+        ],
+        "uuid": "bbacd150"
+    },
+    "554d5d7a": {
+        "status": "new",
+        "desc": "this is NOT a test of the emergency broadcast system",
+        "priority": 0,
+        "created": "2020-03-08 23:07:40.659002",
+        "loc": null,
+        "uuid": "554d5d7a"
+    }
+}
