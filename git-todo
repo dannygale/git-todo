@@ -1,12 +1,17 @@
-#!/usr/bin/python
+#!/usr/local/bin/python
 
 from datetime import datetime
 import os
 import re
 import argparse
 import sys
+import fileinput
+import json
+from pprint import pprint, pformat
 
 from enum import Enum
+
+from gitignore_parser import parse_gitignore
 
 class ToDoStatus(Enum):
     NEW = "new"
@@ -26,10 +31,20 @@ status_symbols = {
 # invert the status_symbols dictionary for getting status from the symbol
 status_lookup = dict([[v,k] for k,v in status_symbols.items()])
 
+'''
+the default regex will match stuff like:
+# TODO: this is a new todo item
+# TODO this is also a new todo item
+# [UUID] [ ] TODO: this is a task [UUID]
+//[ ] P0 this is a task [UUID]
+'''
+# https://regex101.com/r/gM4pI1/57
+TODO_REGEX_STR = "(?P<comment>[#|/{2}])+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO:*\s*(?P<desc>.*)"
+TODO_REGEX = re.compile(TODO_REGEX_STR)
 
 class ToDo(object):
-    def __init__(self, description, status = '+', priority = 0, branch = None, due = None,
-            created = None, updated = None):
+    def __init__(self, description, status = 'new', priority = 0, branch = None, due = None,
+            created = None, updated = None, uuid = None, loc = None):
         self._status = status
         self._desc = description
         self._branch = branch
@@ -38,23 +53,64 @@ class ToDo(object):
         self._created = created if created else datetime.now()
         self._updated = updated if updated else self._created
 
+        self._loc = loc
+
+        self._uuid = uuid if uuid else self.uuid
+
+    @property
+    def uuid(self):
+        return self._uuid if hasattr(self,'_uuid') else hex(hash(str(self._desc) + str(self._loc)))[-9:-1]
+
+    @property
+    def symbol(self):
+        return status_symbols[self._status]
+
+    @property
+    def status(self):
+        return self._status
+
     def __str__(self):
-        #return f'\[{self._status}\] P{self._priority} {self._desc}'
-        return '[{}] P{} {}'.format(status_symbols[self._status], self._priority, self._desc)
+        return f"[{self.uuid}] [{self.symbol}] P{self._priority} TODO: {self._desc}"
+
+    def as_dict(self):
+        return {'status': self._status, 'desc': self._desc, 'priority' : self._priority,
+                'created' : self._created, 'loc': self._loc, 'uuid': self._uuid }
+
 
     @classmethod
-    def from_str(cls, string):
-        expr = re.match("^\[(?P<status>[\+ -/X])\] P(?P<priority>\d+) (?P<desc>.*)$", string)
-        status = status_lookup[expr.group('status')]
-        todo = cls(description = expr.group('desc'), status = status,
-                priority = expr.group('priority'))
+    def from_str(cls, string, expr = None):
+        if not expr: expr = TODO_REGEX
+        match = expr.match(string)
+
+        status = status_lookup[match.group('status')]
+        todo = cls(description = match.group('desc'), status = status,
+                priority = match.group('priority'), uuid = match.group('uuid'))
         return todo
+
+    @classmethod
+    def from_dict(cls, d):
+        if any(type(item) == ToDo for item in d.values()): return d
+        return cls(description = d['desc'], status = d['status'], priority = d['priority'],
+                uuid = d['uuid'], loc = d['loc'])
+
+class ToDoEncoder(json.JSONEncoder):
+    def default(self, o):
+        if type(o) is datetime:
+            return str(o)
+        elif type(o) is ToDo:
+            return o.as_dict()
+        else:
+            raise TypeError
 
 class ToDoList(object):
     def __init__(self, 
-            path = os.path.join(os.popen('git rev-parse --show-toplevel').read().strip(), '.todo')):
-        self._path = path
-        self._todos = [ ]
+            todos = { },
+            root = os.popen('git rev-parse --show-toplevel').read().strip(),
+            fname = '.todo',
+            ):
+        self._root = root
+        self._fname = fname
+        self._todos = todos
 
         parser = argparse.ArgumentParser()
         parser.add_argument('command', help='Subcommand to run', choices = [
@@ -73,7 +129,6 @@ class ToDoList(object):
         parser.add_argument('--branch')
         args = parser.parse_args(sys.argv[2:])
         
-
     def git_todo_list(self):
         parser = argparse.ArgumentParser(description = "Add a new todo item")
         parser.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
@@ -120,16 +175,72 @@ class ToDoList(object):
             elif args.sort == 'status':
                 todos = sorted(todos, key = lambda t: t._status)
 
-        for todo in todos:
+        print('===== TODO =====')
+        for todo in todos.values():
             print(todo)
 
     def git_todo_scan(self):
         parser = argparse.ArgumentParser(description = "Scan source tree for TODO items")
         parser.add_argument('--ignore')
         parser.add_argument('--ignore-from')
-        parser.add_argument('--in-place', description = "Track todo items in-place in the source files where they're found")
+        parser.add_argument('--inplace', help = "Track todo items in-place in the source files where they're found",
+                action='store_true')
 
         args = parser.parse_args(sys.argv[2:])
+    
+        gitignore = os.path.join(self._root, '.gitignore')
+        gitignore = parse_gitignore(gitignore)
+    
+        # walk the git root
+        for dirpath, subdirs, fnames in os.walk(self._root):
+            for fname in fnames:
+                path = os.path.join(dirpath,fname)
+                # if we're ignoring this file, skip it
+                if gitignore(path) or fname == '.gitignore' or path == self.path or \
+                        path == os.path.abspath(__file__) or fname.startswith('.'):
+                    continue
+
+                #print(f"scanning {path}")
+                if args.inplace:
+                    with fileinput.input(files = (path), inplace=True) as f:
+                        for line in f:
+                            match = TODO_REGEX.search(line)
+                            if match:
+                                # found one!
+                                if match.group('status') == None: # it's new
+                                    symbol = '+' 
+                                elif match.group('status') == '+': # it was new last time
+                                    symbol = ' '
+                                else:
+                                    symbol = match.group('status')
+
+                                t = ToDo(description = match.group('desc'), 
+                                        status = status_lookup[symbol], 
+                                        uuid = match.group('uuid') if match.group('uuid') else None,
+                                        loc = (path, f.filelineno())
+                                        )
+                                self._todos[t.uuid] = t
+                                # fileinput redirects standard output to the file
+                                # replace the text that generated the ToDo in place
+                                line = TODO_REGEX.sub(match.group('comment') + ' ' + str(t), 
+                                    line.replace('\n',''))
+
+                            print(line.replace('\n',''))
+                else:
+                    with open(path) as f:
+                        for line in f.readlines():
+                            match = TODO_REGEX.search(line)
+                            if match:
+                                # found one!
+                                t = ToDo(description = match.group('desc'), 
+                                        status = status_lookup[match.group('status')] \
+                                                if match.group('status') else 'new'
+                                                )
+                                self._todos[t.uuid] = t
+                                print(f"found: {match}, replaced with {str(t)}")
+                               
+
+        self.write_todos()
 
     def git_todo_finish(self):
         parser = argparse.ArgumentParser(description = "Mark a todo item complete")
@@ -144,18 +255,24 @@ class ToDoList(object):
 
     @property
     def path(self):
-        return self._path
+        return os.path.join(self._root, self._fname)
 
     def write_todos(self):
-        with open(self._path, 'w') as f:
-            for t in todos:
-                f.write(str(t))
+        with open(self.path, 'w') as f:
+            json.dump(self._todos, f, cls=ToDoEncoder, indent=4)
+            #for t in self._todos.values():
+                #f.write(pformat(json.dumps(t, cls=ToDoEncoder), indent=4)+ '\n')
+                #f.write(pformat(t.as_dict(), indent=4) + '\n')
+            #for t in self._todos:
+                #f.write(f"{t}\n")
 
     def read_todos(self):
-        self._todos = [ ]
-        with open(self._path, 'r') as f:
-            for line in f:
-                self._todos.append(ToDo.from_str(line))
+        self._todos = { }
+        with open(self.path, 'r') as f:
+            #self._todos = json.load(f)
+            self._todos = json.load(f, object_hook = ToDo.from_dict)
+            #for line in f:
+                #self._todos.append(ToDo.from_str(line))
 
         return self._todos
 
