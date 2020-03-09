@@ -3,7 +3,7 @@
         "status": "open",
         "desc": "this is a new todo",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658936",
+        "created": "2020-03-09 16:22:17.771458",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             1
@@ -11,10 +11,10 @@
         "uuid": "ae37c870"
     },
     "5da7594a": {
-        "status": "in-progress",
+        "status": "open",
         "desc": "testing // this should never happen",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658960",
+        "created": "2020-03-09 16:22:17.771554",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             2
@@ -22,10 +22,10 @@
         "uuid": "5da7594a"
     },
     "a539fa96": {
-        "status": "in-progress",
+        "status": "open",
         "desc": "[ ] this is test // neither should this",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658967",
+        "created": "2020-03-09 16:22:17.771636",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             3
@@ -36,7 +36,7 @@
         "status": "open",
         "desc": "this is also a test",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658974",
+        "created": "2020-03-09 16:22:17.771695",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             4
@@ -47,7 +47,7 @@
         "status": "open",
         "desc": "make sure this works",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658981",
+        "created": "2020-03-09 16:22:17.771775",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             5
@@ -58,19 +58,44 @@
         "status": "open",
         "desc": "this is a new todo item",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.658996",
+        "created": "2020-03-09 16:22:17.771835",
         "loc": [
             "/Users/danny/Documents/Projects/git-todo/src/testfile",
             6
         ],
         "uuid": "bbacd150"
     },
-    "554d5d7a": {
+    "486c4811": {
         "status": "new",
-        "desc": "this is NOT a test of the emergency broadcast system",
+        "desc": "make this a context manager",
         "priority": 0,
-        "created": "2020-03-08 23:07:40.659002",
-        "loc": null,
-        "uuid": "554d5d7a"
+        "created": "2020-03-09 16:22:17.774108",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
+            37
+        ],
+        "uuid": "486c4811"
+    },
+    "957f6b59": {
+        "status": "new",
+        "desc": "check if category exists",
+        "priority": 0,
+        "created": "2020-03-09 16:22:17.775297",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
+            263
+        ],
+        "uuid": "957f6b59"
+    },
+    "9b486340": {
+        "status": "new",
+        "desc": "check if branch exists",
+        "priority": 0,
+        "created": "2020-03-09 16:22:17.775393",
+        "loc": [
+            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
+            265
+        ],
+        "uuid": "9b486340"
     }
 }

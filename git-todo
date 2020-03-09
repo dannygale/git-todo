@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import os
+import shutil
 import re
 import argparse
 import sys
@@ -32,15 +33,54 @@ status_symbols = {
 # invert the status_symbols dictionary for getting status from the symbol
 status_lookup = dict([[v,k] for k,v in status_symbols.items()])
 
+
+# [486c4811] [+] P0 TODO: make this a context manager
+def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):   
+    tmp_name = os.path.join(dirpath,fname+tmp_ext)
+    if os.path.exists(tmp_name):
+        raise ValueError
+    shutil.move(os.path.join(dirpath,fname), tmp_name)
+
+    with open(tmp_name, 'r') as infile:
+        with open(os.path.join(dirpath,fname), 'w') as outfile:
+            for ln,line in enumerate(infile.readlines()):
+                if lines_to_replace: lineno,replacement = lines_to_replace[0]
+                if ln == lineno:
+                    outfile.write(replacement)#.replace('\n',''))
+                    lines_to_replace.pop(0)
+                else:
+                    outfile.write(line)#.replace('\n',''))
+
+    os.remove(tmp_name)
+
+def replace_line(dirpath, fname, lineno, replacement, tmp_ext = '.gittodo.bak'):   
+    tmp_name = os.path.join(dirpath,fname+tmp_ext)
+    if os.path.exists(tmp_name):
+        raise ValueError
+    shutil.move(os.path.join(dirpath,fname), tmp_name)
+    
+    with open(tmp_name, 'r') as infile:
+        with open(os.path.join(dirpath,fname), 'w') as outfile:
+            for ln,line in enumerate(infile.readlines()):
+                if ln == lineno:
+                    outfile.write(replacement)#.replace('\n',''))
+                else:
+                    outfile.write(line)#.replace('\n',''))
+    
+    os.remove(tmp_name)
+
+
 '''
-the default regex will match stuff like:
-# TODO: this is a new todo item
-# TODO this is also a new todo item
-# [UUID] [ ] TODO: this is a task [UUID]
-//[ ] P0 this is a task [UUID]
+the default regex will match stuff like below, after and not including the '`':
+`# TODO: this is a new todo item
+`# TODO this is also a new todo item
+`# [UUID] [ ] TODO: this is a task [UUID]
+`//[ ] P0 this is a task [UUID]
+
+The '`' (backtick) can be used to ignore a todo item
 '''
-# https://regex101.com/r/gM4pI1/58
-TODO_REGEX_STR = "(?P<comment>[#|/{2}])+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO:*\s*(?P<desc>.*)"
+# https://regex101.com/r/gM4pI1/63
+TODO_REGEX_STR = "(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO:*\s*(?P<desc>.+)"
 TODO_REGEX = re.compile(TODO_REGEX_STR)
 
 class ToDo(object):
@@ -144,6 +184,10 @@ class ToDoList(object):
         p_edit.add_argument('-b', '--branch', help='set the branch')
         p_edit.set_defaults(func=self.git_todo_edit)
 
+        p_detail = subparsers.add_parser('detail', help='show details of an existing todo item')
+        p_detail.add_argument('uuid', help='uuid of todo item to show')
+        p_detail.set_defaults(func=self.git_todo_detail)
+
         p_list = subparsers.add_parser('list', help='list existing todo items')
         p_list.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
         group = p_list.add_mutually_exclusive_group()
@@ -184,15 +228,23 @@ class ToDoList(object):
 
     def add_todo(self, todo):
         if todo.uuid in self._todos:
-            raise ValueError
-        self._todos[todo.uuid] = todo
-        self.write_todos()
+            t = self._todos[todo.uuid]
+            if todo._loc != t._loc or todo._desc or t._desc:
+                ans = input(f"Which do you want to keep?\n1. {todo}\n2. {self._todos[todo.uuid]}\n1|2 [1]: ")
+                if ans == '1':
+                    self._todos[todo.uuid] = todo
+                elif ans == '2':
+                    self._todos[todo.uuid] = t
+                else:
+                    raise ValueError
+        else:
+            self._todos[todo.uuid] = todo
 
     def get_todo(self, uuid):
         try:
             return self._todos[uuid]
         except KeyError as e:
-            print(f"uuid {uuid} does not exist")
+            self.logger.error(f"uuid {uuid} does not exist")
             sys.exit(1)
 
     def git_todo_add(self, args):
@@ -208,8 +260,10 @@ class ToDoList(object):
             if args.description: t._desc = args.description
             if args.status: t._status = args.status
             if args.due: t._due = datetime.fromisoformat(args.due)
-            if args.category: t._category = category # TODO: check if category exists
-            if args.branch: t._branch = branch # TODO: check if branch exists
+            # [957f6b59] [+] P0 TODO: check if category exists
+            if args.category: t._category = category 
+            # [9b486340] [+] P0 TODO: check if branch exists
+            if args.branch: t._branch = branch 
         elif args.subparser_name == 'workon':
             t._status = 'in-progress'
         elif args.subparser_name == 'finish':
@@ -221,6 +275,16 @@ class ToDoList(object):
     
         self.write_todos()
         
+    def git_todo_detail(self, args):
+        t = self.get_todo(args.uuid)
+
+        print(t)
+        params = ('branch', 'due', 'created', 'updated', 'category')
+        maxlen = max(len(x) for x in params)
+        for a in params:
+            attr = '_' + a
+            print(f"{a:>{maxlen}}: {getattr(t, attr)}")
+
     def git_todo_list(self, args):
         todos = self._todos
 
@@ -257,8 +321,37 @@ class ToDoList(object):
         for todo in todos.values():
             print(todo)
 
-    def _scan_file(self, fname):
-        pass
+    def _scan_file(self, dirpath, fname, inplace=True):
+        lines_to_replace = [ ]
+        path = os.path.join(dirpath, fname)
+        with open(path) as f:
+            for index,line in enumerate(f.readlines()):
+                match = TODO_REGEX.search(line)
+                if match:
+                    # found one!
+                    self.logger.debug(f"Found match at {index}")
+                    if match.group('ignore'): continue
+
+                    if match.group('status') == None: # it's new
+                        symbol = '+' 
+                    elif match.group('status') == '+': # it was new last time
+                        symbol = ' '
+                    else:
+                        symbol = match.group('status') # otherwise don't change it
+
+                    t = ToDo(description = match.group('desc'), 
+                            status = status_lookup[symbol], 
+                            uuid = match.group('uuid') if match.group('uuid') else None,
+                            loc = (path, index+1)
+                            )
+                    self.logger.debug(f"Created todo: {t}")
+                    self.add_todo(t)
+                    line = TODO_REGEX.sub(match.group('comment') + ' ' + str(t), line)
+                            #line.replace('\n',''))
+                    lines_to_replace.append( (index,line) )
+
+        if lines_to_replace:
+            replace_lines(dirpath, fname, lines_to_replace)
 
     def git_todo_scan(self, args):
         if args.ignore_from: ignore_from = parse_gitignore(args.ignore_from)
@@ -267,6 +360,7 @@ class ToDoList(object):
             except: pass
             try: self._scan_file(os.path.join(self._root, args.file))
             except: pass
+            return
     
         gitignore = os.path.join(self._root, '.gitignore')
         gitignore = parse_gitignore(gitignore)
@@ -275,54 +369,13 @@ class ToDoList(object):
         for dirpath, subdirs, fnames in os.walk(self._root):
             for fname in fnames:
                 path = os.path.join(dirpath,fname)
-                self.logger.debug(f"Scanning {path}")
                 # if we're ignoring this file, skip it
                 if gitignore(path) or fname == '.gitignore' or path == self.path or \
-                        path == os.path.abspath(__file__) or fname.startswith('.'):
-                    self.logger.debug(f"Skipping {path}")
+                        fname.startswith('.'): # path == os.path.abspath(__file__) or 
+                    #self.logger.debug(f"Skipping {path}")
                     continue
-
-                if args.inplace:
-                    with fileinput.input(files = (path), inplace=True) as f:
-                        for line in f:
-                            match = TODO_REGEX.search(line)
-                            if match:
-                                # found one!
-                                self.logger.debug(f"Found match at {f.filelineno()}")
-                                if match.group('status') == None: # it's new
-                                    symbol = '+' 
-                                elif match.group('status') == '+': # it was new last time
-                                    symbol = ' '
-                                else:
-                                    symbol = match.group('status')
-
-                                t = ToDo(description = match.group('desc'), 
-                                        status = status_lookup[symbol], 
-                                        uuid = match.group('uuid') if match.group('uuid') else None,
-                                        loc = (path, f.filelineno())
-                                        )
-                                self.logger.debug(f"Created todo: {t}")
-                                self._todos[t.uuid] = t
-                                # fileinput redirects standard output to the file
-                                # replace the text that generated the ToDo in place
-                                line = TODO_REGEX.sub(match.group('comment') + ' ' + str(t), 
-                                    line.replace('\n',''))
-
-                            print(line.replace('\n',''))
-                else:
-                    with open(path) as f:
-                        for index,line in enumerate(f.readlines()):
-                            match = TODO_REGEX.search(line)
-                            if match:
-                                # found one!
-                                self.logger.debug(f"Found match at {index}")
-                                t = ToDo(description = match.group('desc'), 
-                                        status = status_lookup[match.group('status')] \
-                                                if match.group('status') else 'new'
-                                                )
-                                self.logger.debug(f"Created todo: {t}")
-                                self._todos[t.uuid] = t
-                               
+                self.logger.debug(f"Scanning {path}")
+                self._scan_file(dirpath, fname, args.inplace)
 
         self.write_todos()
 
