@@ -124,10 +124,45 @@ class ToDoList(object):
 
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--debug', help='Debug mode', action='store_true')
+        subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
 
-        parser.add_argument('command', help='Subcommand to run', choices = [
-            'add', 'edit', 'list', 'scan', 'finish', 'workon' ])
-        #args = parser.parse_args(sys.argv[1:2])
+        p_add = subparsers.add_parser('add', help='add a new todo item')
+        p_add.add_argument('--branch')
+        p_add.add_argument('-p', '--priority', help='Priority number for the new todo')
+        p_add.add_argument('description', help='The description of the todo item')
+        p_add.set_defaults(func=self.git_todo_add)
+
+        p_edit = subparsers.add_parser('edit', help='edit an existing todo item',
+                aliases = ['workon','finish','cancel','reopen'])
+        p_edit.add_argument('uuid', help='uuid of todo item to edit')
+        p_edit.add_argument('-p','--priority', help='set the priority')
+        p_edit.add_argument('-d','--description', help='set the description')
+        p_edit.add_argument('-s','--status', help='set the status', choices = status_symbols.keys())
+        p_edit.add_argument('--due', help='set the due date')
+        p_edit.add_argument('-c', '--category', help='set the category')
+        p_edit.add_argument('-b', '--branch', help='set the branch')
+        p_edit.set_defaults(func=self.git_todo_edit)
+
+        p_list = subparsers.add_parser('list', help='list existing todo items')
+        p_list.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
+        group = p_list.add_mutually_exclusive_group()
+        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'complete', 'cancelled', 'closed'])
+        group.add_argument('--new', action = 'store_true')
+        group.add_argument('--open', action = 'store_true')
+        group.add_argument('--in-progress', action = 'store_true')
+        group.add_argument('--complete', action = 'store_true')
+        group.add_argument('--cancelled', action = 'store_true')
+        group.add_argument('--closed', action = 'store_true')
+        p_list.set_defaults(func=self.git_todo_list)
+
+        p_scan = subparsers.add_parser('scan', help='scan files for todo items')
+        p_scan.add_argument('-f', '--file', help = 'Scan a specific file')
+        p_scan.add_argument('-i', '--ignore', help = 'Ignore a specific file or pattern')
+        p_scan.add_argument('--ignore-from', help = 'ignore from specified file. Follows .gitignore glob syntax')
+        p_scan.add_argument('--inplace', help = "Track todo items in-place in the source files where they're found",
+                action='store_true')
+        p_scan.set_defaults(func=self.git_todo_scan)
+
         args = parser.parse_args()
 
         self._debug = args.debug
@@ -139,13 +174,7 @@ class ToDoList(object):
 
         self.read_todos()
 
-        method = 'git_todo_'+args.command
-        if not hasattr(self, method):
-            self.logger.error("Unrecognized command: {}".format(args.command))
-            parser.print_help()
-            exit(1)
-
-        getattr(self, method)()
+        args.func(args)
 
     def add_todo(self, todo):
         if todo.uuid in self._todos:
@@ -160,27 +189,14 @@ class ToDoList(object):
             print(f"uuid {uuid} does not exist")
             return None
 
-    def git_todo_add(self):
+    def git_todo_add(self, args):
         parser = argparse.ArgumentParser(description = "Add a new todo item")
-        parser.add_argument('--branch')
-        parser.add_argument('-p', '--priority', help='Priority number for the new todo')
-        parser.add_argument('description', help='The description of the todo item')
         args = parser.parse_args(sys.argv[2:])
     
         t = ToDo(args.description, priority=int(args.priority) if args.priority else 0)
         self.add_todo(t)
         
-    def git_todo_edit(self):
-        parser = argparse.ArgumentParser(description = "Edit an existing todo item")
-        parser.add_argument('uuid', help='uuid of todo item to edit')
-        parser.add_argument('-p','--priority', help='set the priority')
-        parser.add_argument('-d','--description', help='set the description')
-        parser.add_argument('-s','--status', help='set the status', choices = status_symbols.keys())
-        parser.add_argument('--due', help='set the due date')
-        parser.add_argument('-c', '--category', help='set the category')
-        parser.add_argument('-b', '--branch', help='set the branch')
-        args = parser.parse_args(sys.argv[2:])
-
+    def git_todo_edit(self, args):
         t = self.get_todo(args.uuid)
     
         if args.priority: t._priority = int(args.priority)
@@ -192,20 +208,7 @@ class ToDoList(object):
     
         self.write_todos()
         
-    def git_todo_list(self):
-        parser = argparse.ArgumentParser(description = "Add a new todo item")
-        parser.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'complete', 'cancelled', 'closed'])
-        group.add_argument('--new', action = 'store_true')
-        group.add_argument('--open', action = 'store_true')
-        group.add_argument('--in-progress', action = 'store_true')
-        group.add_argument('--complete', action = 'store_true')
-        group.add_argument('--cancelled', action = 'store_true')
-        group.add_argument('--closed', action = 'store_true')
-
-        args = parser.parse_args(sys.argv[2:])
-
+    def git_todo_list(self, args):
         todos = self.read_todos()
 
         if args.show == 'closed':
@@ -228,15 +231,15 @@ class ToDoList(object):
             todos = [ t for t in todos if ((t._status == 'cancelled') or 
                     (t._status == 'complete')) ]
 
-        if hasattr(args, 'sort'):
-            if args.sort == 'priority':
-                todos = sorted(todos, key = lambda t: t._priority)
-            elif args.sort == 'created':
-                todos = sorted(todos, key = lambda t: t._created)
-            elif args.sort == 'updated':
-                todos = sorted(todos, key = lambda t: t._updated)
-            elif args.sort == 'status':
-                todos = sorted(todos, key = lambda t: t._status)
+        #if hasattr(args, 'sort'):
+        if args.sort == 'priority':
+            todos = sorted(todos, key = lambda t: t._priority)
+        elif args.sort == 'created':
+            todos = sorted(todos, key = lambda t: t._created)
+        elif args.sort == 'updated':
+            todos = sorted(todos, key = lambda t: t._updated)
+        elif args.sort == 'status':
+            todos = sorted(todos, key = lambda t: t._status)
 
         for todo in todos.values():
             print(todo)
@@ -244,16 +247,7 @@ class ToDoList(object):
     def _scan_file(self, fname):
         pass
 
-    def git_todo_scan(self):
-        parser = argparse.ArgumentParser(description = "Scan source tree for TODO items")
-        parser.add_argument('-f', '--file', help = 'Scan a specific file')
-        parser.add_argument('-i', '--ignore', help = 'Ignore a specific file or pattern')
-        parser.add_argument('--ignore-from', help = 'ignore from specified file. Follows .gitignore glob syntax')
-        parser.add_argument('--inplace', help = "Track todo items in-place in the source files where they're found",
-                action='store_true')
-
-        args = parser.parse_args(sys.argv[2:])
-
+    def git_todo_scan(self, args):
         if args.ignore_from: ignore_from = parse_gitignore(args.ignore_from)
         if args.file: 
             try: self._scan_file(os.path.join(os.getcwd(), args.file))
@@ -317,31 +311,6 @@ class ToDoList(object):
                                 self._todos[t.uuid] = t
                                
 
-        self.write_todos()
-
-    def git_todo_finish(self):
-        parser = argparse.ArgumentParser(description = "Mark a todo item complete")
-        parser.add_argument('uuid', help='uuid of todo item to work on')
-        args = parser.parse_args(sys.argv[2:])
-        t = self.get_todo(args.uuid)
-        
-        t._status = 'finished'
-        self.write_todos()
-
-    def git_todo_cancel(self):
-        parser = argparse.ArgumentParser(description = "Mark a todo item cancelled")
-        parser.add_argument('uuid', help='uuid of todo item to work on')
-        args = parser.parse_args(sys.argv[2:])
-        t = self.get_todo(args.uuid)
-        t._status = 'cancelled'
-        self.write_todos()
-
-    def git_todo_workon(self):
-        parser = argparse.ArgumentParser(description = "Mark a todo item as in progress")
-        parser.add_argument('uuid', help='uuid of todo item to work on')
-        args = parser.parse_args(sys.argv[2:])
-        t = self.get_todo(args.uuid)
-        t._status = 'in-progress'
         self.write_todos()
 
     @property
