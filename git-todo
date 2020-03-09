@@ -18,14 +18,14 @@ class ToDoStatus(Enum):
     NEW = "new"
     OPEN = "open"
     IN_PROGRESS = "in progress"
-    COMPLETE = "complete"
+    finished = "finished"
     CANCELLED = "cancelled"
 
 status_symbols = {
         "new" : '+',
         "open" : ' ',
         "in-progress" : '-',
-        'complete' : 'X',
+        'finished' : 'X',
         'cancelled' : '/'
         }
 
@@ -129,6 +129,7 @@ class ToDoList(object):
         p_add = subparsers.add_parser('add', help='add a new todo item')
         p_add.add_argument('--branch')
         p_add.add_argument('-p', '--priority', help='Priority number for the new todo')
+        p_add.add_argument('--due', help='Set a due date')
         p_add.add_argument('description', help='The description of the todo item')
         p_add.set_defaults(func=self.git_todo_add)
 
@@ -146,11 +147,11 @@ class ToDoList(object):
         p_list = subparsers.add_parser('list', help='list existing todo items')
         p_list.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
         group = p_list.add_mutually_exclusive_group()
-        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'complete', 'cancelled', 'closed'])
+        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'finished', 'cancelled', 'closed'])
         group.add_argument('--new', action = 'store_true')
         group.add_argument('--open', action = 'store_true')
         group.add_argument('--in-progress', action = 'store_true')
-        group.add_argument('--complete', action = 'store_true')
+        group.add_argument('--finished', action = 'store_true')
         group.add_argument('--cancelled', action = 'store_true')
         group.add_argument('--closed', action = 'store_true')
         p_list.set_defaults(func=self.git_todo_list)
@@ -166,6 +167,7 @@ class ToDoList(object):
         args = parser.parse_args()
 
         self._debug = args.debug
+        logging.basicConfig(stream = sys.stdout)
         self.logger = logging.getLogger('git-todo')
         if self._debug: self.logger.setLevel(logging.DEBUG)
         else: self.logger.setLevel(logging.INFO)
@@ -173,7 +175,7 @@ class ToDoList(object):
         self.logger.debug(args)
 
         self.read_todos()
-
+        
         args.func(args)
 
     def add_todo(self, todo):
@@ -187,33 +189,40 @@ class ToDoList(object):
             return self._todos[uuid]
         except KeyError as e:
             print(f"uuid {uuid} does not exist")
-            return None
+            sys.exit(1)
 
     def git_todo_add(self, args):
-        parser = argparse.ArgumentParser(description = "Add a new todo item")
-        args = parser.parse_args(sys.argv[2:])
-    
-        t = ToDo(args.description, priority=int(args.priority) if args.priority else 0)
+        t = ToDo(args.description, priority=int(args.priority) if args.priority else 0,
+                due = args.due if args.due else None)
         self.add_todo(t)
         
     def git_todo_edit(self, args):
         t = self.get_todo(args.uuid)
     
-        if args.priority: t._priority = int(args.priority)
-        if args.description: t._desc = args.description
-        if args.status: t._status = args.status
-        if args.due: t._due = datetime.fromisoformat(args.due)
-        if args.category: t._category = category # TODO: check if category exists
-        if args.branch: t._branch = branch # TODO: check if branch exists
+        if args.subparser_name == 'edit':
+            if args.priority: t._priority = int(args.priority)
+            if args.description: t._desc = args.description
+            if args.status: t._status = args.status
+            if args.due: t._due = datetime.fromisoformat(args.due)
+            if args.category: t._category = category # TODO: check if category exists
+            if args.branch: t._branch = branch # TODO: check if branch exists
+        elif args.subparser_name == 'workon':
+            t._status = 'in-progress'
+        elif args.subparser_name == 'finish':
+            t._status = 'finished'
+        elif args.subparser_name == 'cancel':
+            t._status = 'cancelled'
+        else:
+            raise ValueError
     
         self.write_todos()
         
     def git_todo_list(self, args):
-        todos = self.read_todos()
+        todos = self._todos
 
         if args.show == 'closed':
             todos = [ t for t in todos if ((t._status == 'cancelled') or 
-                    (t._status == 'complete')) ]
+                    (t._status == 'finished')) ]
         elif args.show:
             todos = [ t for t in todos if t._status == args.show ]
         # shortcuts for --show <status>
@@ -223,13 +232,13 @@ class ToDoList(object):
           todos = [ t for t in todos if t._status == 'open' ]
         elif args.in_progress:
           todos = [ t for t in todos if t._status == 'in-progress' ]
-        elif args.complete:
-          todos = [ t for t in todos if t._status == 'complete' ]
+        elif args.finished:
+          todos = [ t for t in todos if t._status == 'finished' ]
         elif args.cancelled:
           todos = [ t for t in todos if t._status == 'cancelled' ]
         elif args.closed:
             todos = [ t for t in todos if ((t._status == 'cancelled') or 
-                    (t._status == 'complete')) ]
+                    (t._status == 'finished')) ]
 
         #if hasattr(args, 'sort'):
         if args.sort == 'priority':
