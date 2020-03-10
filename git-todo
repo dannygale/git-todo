@@ -30,6 +30,16 @@ status_symbols = {
         'cancelled' : '/'
         }
 
+unicode_symbols = {
+        "new" : '★',
+        "open" : ' ',
+        "in-progress" : '…',
+        'finished' : '✔︎',
+        'cancelled' : '✘'
+        }
+exclam = '❗️'
+status_symbols = unicode_symbols
+
 # invert the status_symbols dictionary for getting status from the symbol
 status_lookup = dict([[v,k] for k,v in status_symbols.items()])
 
@@ -37,12 +47,13 @@ status_lookup = dict([[v,k] for k,v in status_symbols.items()])
 # [486c4811] [+] P0 TODO: make this a context manager
 def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):   
     tmp_name = os.path.join(dirpath,fname+tmp_ext)
+    path = os.path.join(dirpath,fname)
     if os.path.exists(tmp_name):
         raise ValueError
-    shutil.move(os.path.join(dirpath,fname), tmp_name)
+    shutil.move(path, tmp_name)
 
     with open(tmp_name, 'r') as infile:
-        with open(os.path.join(dirpath,fname), 'w') as outfile:
+        with open(path, 'w') as outfile:
             for ln,line in enumerate(infile.readlines()):
                 if lines_to_replace: lineno,replacement = lines_to_replace[0]
                 if ln == lineno:
@@ -50,24 +61,11 @@ def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):
                     lines_to_replace.pop(0)
                 else:
                     outfile.write(line)#.replace('\n',''))
-
+    shutil.copystat(tmp_name, path)
     os.remove(tmp_name)
 
 def replace_line(dirpath, fname, lineno, replacement, tmp_ext = '.gittodo.bak'):   
-    tmp_name = os.path.join(dirpath,fname+tmp_ext)
-    if os.path.exists(tmp_name):
-        raise ValueError
-    shutil.move(os.path.join(dirpath,fname), tmp_name)
-    
-    with open(tmp_name, 'r') as infile:
-        with open(os.path.join(dirpath,fname), 'w') as outfile:
-            for ln,line in enumerate(infile.readlines()):
-                if ln == lineno:
-                    outfile.write(replacement)#.replace('\n',''))
-                else:
-                    outfile.write(line)#.replace('\n',''))
-    
-    os.remove(tmp_name)
+    replace_lines(dirpath, fname, [ (lineno, replacement) ], tmp_ext)
 
 
 '''
@@ -77,7 +75,9 @@ the default regex will match stuff like below, after and not including the '`':
 `# [UUID] [ ] TODO: this is a task [UUID]
 `//[ ] P0 this is a task [UUID]
 
-The '`' (backtick) can be used to ignore a todo item
+The '`' (backtick) can be used to force git-todo to ignore a todo item
+Alternatively, a non-whitespace character between the comment character and 
+TODO will also force git-todo to ignore the item
 '''
 # https://regex101.com/r/gM4pI1/63
 TODO_REGEX_STR = "(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO:*\s*(?P<desc>.+)"
@@ -120,7 +120,7 @@ class ToDo(object):
         return self._status
 
     def __str__(self):
-        return f"[{self.uuid}] [{self.symbol}] P{self._priority} TODO: {self._desc}"
+        return f"[{self.uuid}] [{self.symbol}]{exclam if self._priority == 0 else ' '}P{self._priority} TODO: {self._desc}"
 
     def as_dict(self):
         return {'status': self._status, 'desc': self._desc, 'priority' : self._priority,
