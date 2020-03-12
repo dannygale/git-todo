@@ -16,13 +16,6 @@ from enum import Enum
 
 from gitignore_parser import parse_gitignore
 
-class ToDoStatus(Enum):
-    NEW = "new"
-    OPEN = "open"
-    IN_PROGRESS = "in progress"
-    finished = "finished"
-    CANCELLED = "cancelled"
-
 status_symbols = {
         "new" : '+',
         "open" : ' ',
@@ -39,11 +32,19 @@ unicode_symbols = {
         'cancelled' : '✘'
         }
 exclam = '❗️'
+
 #status_symbols = unicode_symbols
 
 # invert the status_symbols dictionary for getting status from the symbol
 status_lookup = dict([[v,k] for k,v in status_symbols.items()])
 
+status_order = {
+        'new' : 0,
+        'open' : 1,
+        'in-progress' : 2,
+        'finished' : 3,
+        'cancelled' : 4
+        }
 
 # [486c4811] [+] P0 TODO: make this a context manager
 def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):   
@@ -80,8 +81,8 @@ The '`' (backtick) can be used to force git-todo to ignore a todo item
 Alternatively, a non-whitespace character between the comment character and 
 TODO will also force git-todo to ignore the item
 '''
-# https://regex101.com/r/gM4pI1/63
-TODO_REGEX_STR = "(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO:*\s*(?P<desc>.+)"
+# https://regex101.com/r/gM4pI1/65
+TODO_REGEX_STR = "(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO(:(?P<category>\[[^\s]*\]))*:{,1}\s*(?P<desc>.+)"
 TODO_REGEX = re.compile(TODO_REGEX_STR)
 
 class ToDo(object):
@@ -121,7 +122,9 @@ class ToDo(object):
         return self._status
 
     def __str__(self):
-        return f"[{self.uuid}] [{self.symbol}]{exclam if self._priority == 0 else ' '}P{self._priority} TODO: {self._desc}"
+        return f"[{self.uuid}] [{self.symbol}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:{'['+self._category+']' if self._category else ''} {self._desc}"
+    def display(self):
+        print(f"[{self.uuid}] [{unicode_symbols[self.status]}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:{'['+self._category+']' if self._category else ''} {self._desc}")
 
     def as_dict(self):
         d = self.__dict__
@@ -143,7 +146,7 @@ class ToDo(object):
     def from_dict(cls, d):
         if any(type(item) == ToDo for item in d.values()): return d
         return cls(description = d['desc'], status = d['status'], priority = d['priority'],
-                uuid = d['uuid'], loc = tuple(d['loc']))
+                uuid = d['uuid'], loc = tuple(d['loc']), category = d['category'])
 
 class ToDoEncoder(json.JSONEncoder):
     def default(self, o):
@@ -177,7 +180,7 @@ class ToDoList(object):
         p_add.set_defaults(func=self.git_todo_add)
 
         p_edit = subparsers.add_parser('edit', help='edit an existing todo item',
-                aliases = ['workon','finish','cancel','reopen'])
+                aliases = ['workon','inprogress','finish','cancel','reopen'])
         p_edit.add_argument('uuid', help='uuid of todo item to edit')
         p_edit.add_argument('-p','--priority', help='set the priority')
         p_edit.add_argument('-d','--description', help='set the description')
@@ -194,13 +197,16 @@ class ToDoList(object):
         p_list = subparsers.add_parser('list', help='list existing todo items')
         p_list.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
         group = p_list.add_mutually_exclusive_group()
-        group.add_argument('--show', choices = ['new', 'open', 'in-progress', 'finished', 'cancelled', 'closed'])
+        group.add_argument('--status', choices = ['new', 'open', 'in-progress', 'finished', 'cancelled', 'closed'])
         group.add_argument('--new', action = 'store_true')
         group.add_argument('--open', action = 'store_true')
         group.add_argument('--in-progress', action = 'store_true')
         group.add_argument('--finished', action = 'store_true')
         group.add_argument('--cancelled', action = 'store_true')
         group.add_argument('--closed', action = 'store_true')
+        p_list.add_argument('--show-closed', action = 'store_true')
+        p_list.add_argument('--show-cancelled', action = 'store_true')
+        p_list.add_argument('--show-finished', action = 'store_true')
         p_list.set_defaults(func=self.git_todo_list)
 
         p_scan = subparsers.add_parser('scan', help='scan files for todo items')
@@ -272,13 +278,15 @@ class ToDoList(object):
             if args.status: t._status = args.status
             if args.due: t._due = datetime.fromisoformat(args.due)
             # [957f6b59] [+] P0 TODO: check if category exists
-            if args.category: t._category = category 
+            if args.category: t._category = args.category 
             # [9b486340] [+] P0 TODO: check if branch exists
             if args.branch: t._branch = branch 
         elif args.subparser_name == 'workon':
             t._status = 'in-progress'
             EDITOR = os.environ.get('EDITOR', 'vi')
             subprocess.call([f"{EDITOR}", f"+{t._loc[1]}", f"{t._loc[0]}"])
+        elif args.subparser_name == 'inprogress':
+            t._status = 'in-progress'
         elif args.subparser_name == 'finish':
             t._status = 'finished'
         elif args.subparser_name == 'cancel':
@@ -299,13 +307,13 @@ class ToDoList(object):
             print(f"{a:>{maxlen}}: {getattr(t, attr)}")
 
     def git_todo_list(self, args):
-        todos = self._todos
+        todos = self._todos.values()
 
-        if args.show == 'closed':
+        if args.status == 'closed':
             todos = [ t for t in todos if ((t._status == 'cancelled') or 
                     (t._status == 'finished')) ]
-        elif args.show:
-            todos = [ t for t in todos if t._status == args.show ]
+        elif args.status:
+            todos = [ t for t in todos if t._status == args.status ]
         # shortcuts for --show <status>
         elif args.new:
             todos = [ t for t in todos if t._status == 'new' ]
@@ -321,6 +329,11 @@ class ToDoList(object):
             todos = [ t for t in todos if ((t._status == 'cancelled') or 
                     (t._status == 'finished')) ]
 
+        todos = [ t for t in todos if (args.show_closed and (t._status in ('finished','cancelled'))) or \
+                args.show_cancelled and t._status == 'cancelled' or \
+                args.show_finished and t._status == 'finished' or \
+                t._status not in ('finished', 'cancelled') ]
+
         #if hasattr(args, 'sort'):
         if args.sort == 'priority':
             todos = sorted(todos, key = lambda t: t._priority)
@@ -330,9 +343,14 @@ class ToDoList(object):
             todos = sorted(todos, key = lambda t: t._updated)
         elif args.sort == 'status':
             todos = sorted(todos, key = lambda t: t._status)
+        else:
+            todos = sorted(todos, key = lambda t: (not(t._priority == 0 and \
+                    t.status not in ('finished', 'cancelled')), 
+                    status_order[t._status], t._priority )
+                    )
 
-        for todo in todos.values():
-            print(todo)
+        for todo in todos:
+            todo.display()
 
     def _scan_file(self, dirpath, fname, inplace=True):
         lines_to_replace = [ ]
@@ -412,7 +430,7 @@ class ToDoList(object):
             with open(self.path, 'r') as f:
                 self._todos = json.load(f, object_hook = ToDo.from_dict)
         except FileNotFoundError:
-            pass
+            self.logger.error(f"Couldn't open file '{self.path}'")
         return self._todos
 
     def __iter__(self):
