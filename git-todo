@@ -233,7 +233,11 @@ class ToDoList(object):
     def add_todo(self, todo):
         if todo.uuid in self._todos:
             t = self._todos[todo.uuid]
-            if (todo._loc != t._loc) or (todo._desc != t._desc) or (todo._priority != t._priority):
+
+            if (t._desc == todo._desc):
+                self._todos[todo.uuid] = todo # if uuid and description are the same, keep the new one
+
+            elif (todo._loc != t._loc) or (todo._desc != t._desc):
                 self.logger.debug(f"{(t._loc == todo._loc)}, {(t._desc == todo._desc)}, {(t._priority == todo._priority)}" )
                 ans = input(f"Which do you want to keep?\n1. {todo} {todo._loc}\n2. {self._todos[todo.uuid]} {self._todos[todo.uuid]._loc}\n1|2 [1]: ")
                 if ans == '1':
