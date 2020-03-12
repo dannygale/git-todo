@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import os
+import subprocess
 import shutil
 import re
 import argparse
@@ -272,6 +273,8 @@ class ToDoList(object):
             if args.branch: t._branch = branch 
         elif args.subparser_name == 'workon':
             t._status = 'in-progress'
+            EDITOR = os.environ.get('EDITOR', 'vi')
+            subprocess.call([f"{EDITOR}", f"+{t._loc[1]}", f"{t._loc[0]}"])
         elif args.subparser_name == 'finish':
             t._status = 'finished'
         elif args.subparser_name == 'cancel':
