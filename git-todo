@@ -260,7 +260,6 @@ class ToDoList(object):
 
         self.logger.debug(args)
         self.logger.debug(self.__dict__)
-
         
         if hasattr(args, 'func'):
             args.func(args)
@@ -270,7 +269,6 @@ class ToDoList(object):
         if not match:
             raise argparse.ArgumentTypeError
         return arg
-
 
     def uuid_completer(self,**kwargs):
         resp = [ str(t) for t in self._todos ]
