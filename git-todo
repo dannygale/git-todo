@@ -1,11 +1,12 @@
 #!/usr/local/bin/python
+# PYTHON_ARGCOMPLETE_OK
 
 from datetime import datetime
 import os
 import subprocess
 import shutil
 import re
-import argparse
+import argcomplete, argparse
 import sys
 import fileinput
 import json
@@ -46,7 +47,7 @@ status_order = {
         'cancelled' : 4
         }
 
-# [486c4811] [+] P0 TODO: make this a context manager
+# [486c4811] [ ]P1 TODO: make this a context manager
 def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):   
     tmp_name = os.path.join(dirpath,fname+tmp_ext)
     path = os.path.join(dirpath,fname)
@@ -136,6 +137,8 @@ class ToDo(object):
     def from_str(cls, string, expr = None):
         if not expr: expr = TODO_REGEX
         match = expr.match(string)
+        if match.group('ignore'):
+            return
 
         status = status_lookup[match.group('status')]
         todo = cls(description = match.group('desc'), status = status,
@@ -146,7 +149,9 @@ class ToDo(object):
     def from_dict(cls, d):
         if any(type(item) == ToDo for item in d.values()): return d
         return cls(description = d['desc'], status = d['status'], priority = d['priority'],
-                uuid = d['uuid'], loc = tuple(d['loc']), category = d['category'])
+                branch = d['branch'], due = d['due'], created = d['created'], updated = d['updated'],
+                uuid = d['uuid'], loc = tuple(d['loc']), category = d['category'], 
+                )
 
 class ToDoEncoder(json.JSONEncoder):
     def default(self, o):
@@ -159,16 +164,20 @@ class ToDoEncoder(json.JSONEncoder):
 
 class ToDoList(object):
     def __init__(self, 
-            todos = { },
+            todos = None,
             root = None,
             fname = '.todo',
             ):
         self._root = root if root else os.popen('git rev-parse --show-toplevel').read().strip()
         self._fname = fname
-        self._todos = todos
+        self._todos = todos if todos else { }
+
+        self.read_todos()
 
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--debug', help='Debug mode', action='store_true')
+        parser.add_argument('uuid', type=self.uuid_regex, help='uuid of task to detail', nargs='?').completer = self.uuid_completer
+        parser.set_defaults()#func=self.git_todo_list)
         subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
 
         p_add = subparsers.add_parser('add', help='add a new todo item')
@@ -180,34 +189,49 @@ class ToDoList(object):
         p_add.set_defaults(func=self.git_todo_add)
 
         p_edit = subparsers.add_parser('edit', help='edit an existing todo item',
-                aliases = ['workon','inprogress','finish','cancel','reopen'])
-        p_edit.add_argument('uuid', help='uuid of todo item to edit')
+                aliases = ['workon', 'inprogress','finish','cancel','reopen']) 
+        p_edit.add_argument('uuid', help='uuid of todo item to edit').completer = self.uuid_completer
         p_edit.add_argument('-p','--priority', help='set the priority')
         p_edit.add_argument('-d','--description', help='set the description')
-        p_edit.add_argument('-s','--status', help='set the status', choices = status_symbols.keys())
+        p_edit.add_argument('-s','--status', help='set the status', choices = status_symbols.keys()).completer =self.status_completer
         p_edit.add_argument('--due', help='set the due date')
-        p_edit.add_argument('-c', '--category', help='set the category')
-        p_edit.add_argument('-b', '--branch', help='set the branch')
+        p_edit.add_argument('-c', '--category', help='set the category').completer = self.category_completer
+        p_edit.add_argument('-b', '--branch', help='set the branch').completer = self.branch_completer
         p_edit.set_defaults(func=self.git_todo_edit)
 
         p_detail = subparsers.add_parser('detail', help='show details of an existing todo item')
-        p_detail.add_argument('uuid', help='uuid of todo item to show')
+        p_detail.add_argument('uuid', help='uuid of todo item to show').completer = self.uuid_completer
         p_detail.set_defaults(func=self.git_todo_detail)
 
-        p_list = subparsers.add_parser('list', help='list existing todo items')
-        p_list.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
-        group = p_list.add_mutually_exclusive_group()
-        group.add_argument('--status', choices = ['new', 'open', 'in-progress', 'finished', 'cancelled', 'closed'])
-        group.add_argument('--new', action = 'store_true')
-        group.add_argument('--open', action = 'store_true')
-        group.add_argument('--in-progress', action = 'store_true')
-        group.add_argument('--finished', action = 'store_true')
-        group.add_argument('--cancelled', action = 'store_true')
-        group.add_argument('--closed', action = 'store_true')
-        p_list.add_argument('--show-closed', action = 'store_true')
-        p_list.add_argument('--show-cancelled', action = 'store_true')
-        p_list.add_argument('--show-finished', action = 'store_true')
-        p_list.set_defaults(func=self.git_todo_list)
+        #parser = subparsers.add_parser('list', help='list existing todo items')
+        parser.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'])
+
+        # the status types below can be combined to select ONLY todos with one of the spec'ed statuses
+        # or --status can be repeated
+        select_group = parser.add_argument_group(title = 'select')
+        select_group.add_argument('--status', choices = status_symbols.keys(), dest='select', action='append')
+        select_group.add_argument('--new', help='select new todos', action = 'append_const', dest='select', const='new')
+        select_group.add_argument('--open', help='select open todos', action = 'append_const', dest='select', const='open')
+        select_group.add_argument('--in-progress', help='select in-progress todos', action = 'append_const', dest='select', const='in-progress')
+        select_group.add_argument('--finished', help='select finished todos', action = 'append_const', dest='select', const='finished')
+        select_group.add_argument('--cancelled', help='select cancelled todos', action = 'append_const', dest='select', const='cancelled')
+        select_group.add_argument('--closed', help='select cancelled/finished todos', action = 'append_const', dest='select', const='closed')
+
+        # by default, closed todos are not included in lists, but they can be forced
+        include_group = parser.add_argument_group(title = 'include')
+        include_group.add_argument('--show-closed', help='include cancelled/finished todos', action = 'append_const', dest = 'include', const = 'closed')
+        include_group.add_argument('--show-cancelled', help='include cancelled todos', action = 'append_const',
+                dest='include', const='cancelled')
+        include_group.add_argument('--show-finished', help='include finished todos', action = 'append_const', dest='include',
+                const='finished')
+
+        # filter by cateogry, priority, or branch
+        filter_group = parser.add_argument_group(title = 'filter')
+        filter_group.add_argument('-c', '--category', help='filter by category').completer = self.category_completer
+        filter_group.add_argument('-p','--priority', help='filter by priority')
+        filter_group.add_argument('-b', '--branch', help='filter by branch').completer = self.branch_completer
+        filter_group.add_argument('-s', '--search', '--description', help='search decriptions for a string', action = 'append', dest='search')
+        filter_group.set_defaults(func=self.git_todo_list)
 
         p_scan = subparsers.add_parser('scan', help='scan files for todo items')
         p_scan.add_argument('-f', '--file', help = 'Scan a specific file')
@@ -217,24 +241,54 @@ class ToDoList(object):
                 action='store_true')
         p_scan.set_defaults(func=self.git_todo_scan)
 
+        p_delete = subparsers.add_parser('delete', help='delete a todo from the "database"')
+        p_delete.add_argument('uuid', help='uuid of todo item to show').completer = self.uuid_completer
+        p_delete.set_defaults(func=self.git_todo_delete)
+
+        p_clean = subparsers.add_parser('clean', help='permanently delete all closed todo items')
+        p_clean.set_defaults(func=self.git_todo_clean)
+
+        argcomplete.autocomplete(parser, always_complete_options = False)
         args = parser.parse_args()
 
-        self._debug = args.debug
         logging.basicConfig(stream = sys.stdout)
         self.logger = logging.getLogger('git-todo')
+
+        self._debug = args.debug
         if self._debug: self.logger.setLevel(logging.DEBUG)
         else: self.logger.setLevel(logging.INFO)
 
         self.logger.debug(args)
         self.logger.debug(self.__dict__)
 
-        self.read_todos()
         
         if hasattr(args, 'func'):
             args.func(args)
-        else:
-            args = parser.parse_args("list".split())
-            self.git_todo_list(args)
+
+    def uuid_regex(self, arg):
+        match = re.compile(r"[0-9a-f]{8}").match(arg)
+        if not match:
+            raise argparse.ArgumentTypeError
+        return arg
+
+
+    def uuid_completer(self,**kwargs):
+        resp = [ str(t) for t in self._todos ]
+        return resp
+
+    def category_completer(self, **kwargs):
+        result = set([ str(t._category) for t in self._todos.values() ])
+        if 'None' in result: result.remove('None')
+        return result
+
+    def branch_completer(self, **kwargs):
+        result = set([ str(t._branch) for t in self._todos.values() ])
+        if 'None' in result: result.remove('None')
+        return result
+
+    def status_completer(self, **kwargs):
+        result = status_symbols.keys()
+        return result
 
     def add_todo(self, todo):
         if todo.uuid in self._todos:
@@ -277,20 +331,26 @@ class ToDoList(object):
             if args.description: t._desc = args.description
             if args.status: t._status = args.status
             if args.due: t._due = datetime.fromisoformat(args.due)
-            # [957f6b59] [+] P0 TODO: check if category exists
+            # [957f6b59] [ ]P1 TODO: check if category exists
             if args.category: t._category = args.category 
-            # [9b486340] [+] P0 TODO: check if branch exists
+            # [9b486340] [ ]P1 TODO: check if branch exists
             if args.branch: t._branch = branch 
+
+            if any(x for x in (args.priority, args.description, args.status, args.due, args.category, args.branch)):
+                t._updated = datetime.now()
         elif args.subparser_name == 'workon':
-            t._status = 'in-progress'
+            t._updated = datetime.now()
             EDITOR = os.environ.get('EDITOR', 'vi')
             subprocess.call([f"{EDITOR}", f"+{t._loc[1]}", f"{t._loc[0]}"])
         elif args.subparser_name == 'inprogress':
             t._status = 'in-progress'
+            t._updated = datetime.now()
         elif args.subparser_name == 'finish':
             t._status = 'finished'
+            t._updated = datetime.now()
         elif args.subparser_name == 'cancel':
             t._status = 'cancelled'
+            t._updated = datetime.now()
         else:
             raise ValueError
     
@@ -306,43 +366,50 @@ class ToDoList(object):
             attr = '_' + a
             print(f"{a:>{maxlen}}: {getattr(t, attr)}")
 
+    def git_todo_delete(self, args):
+        self._todos.pop(args.uuid)
+        self.write_todos()
+
+    def git_todo_clean(self, args):
+        self._todos = { k:v for (k,v) in self._todos.items() if v._category not in ('cancelled', 'finished') }
+        self.write_todos()
+
     def git_todo_list(self, args):
-        todos = self._todos.values()
+        #
+        # Build the list of todos
+        #
+        if args.select:
+            if 'closed' in args.select:
+                args.select += [ 'finished', 'cancelled' ]
+                args.select.remove('closed')
+            todos = [ t for t in self._todos.values() if t._status in args.select ]
+        else:
+            todos = [ t for t in self._todos.values() if t._status not in ['finished', 'cancelled'] ]
 
-        if args.status == 'closed':
-            todos = [ t for t in todos if ((t._status == 'cancelled') or 
-                    (t._status == 'finished')) ]
-        elif args.status:
-            todos = [ t for t in todos if t._status == args.status ]
-        # shortcuts for --show <status>
-        elif args.new:
-            todos = [ t for t in todos if t._status == 'new' ]
-        elif args.open:
-          todos = [ t for t in todos if t._status == 'open' ]
-        elif args.in_progress:
-          todos = [ t for t in todos if t._status == 'in-progress' ]
-        elif args.finished:
-          todos = [ t for t in todos if t._status == 'finished' ]
-        elif args.cancelled:
-          todos = [ t for t in todos if t._status == 'cancelled' ]
-        elif args.closed:
-            todos = [ t for t in todos if ((t._status == 'cancelled') or 
-                    (t._status == 'finished')) ]
+            if args.include:
+                if 'closed' in args.include:
+                    args.include += [ 'finished', 'cancelled' ]
+                    args.include.remove('closed')
+                todos += [ t for t in self._todos.values() if t._status in args.include ]
 
-        todos = [ t for t in todos if (args.show_closed and (t._status in ('finished','cancelled'))) or \
-                args.show_cancelled and t._status == 'cancelled' or \
-                args.show_finished and t._status == 'finished' or \
-                t._status not in ('finished', 'cancelled') ]
+        #
+        # Filter todos based on what's been selected
+        #
+        if args.category:
+            todos = [ t for t in todos if t._category == args.category]
+        if args.priority:
+            todos = [ t for t in todos if t._priority == args.priority]
+        if args.branch:
+            todos = [ t for t in todos if t._branch == args.branch]
+        if args.search:
+            for desc in args.search:
+                todos = [ t for t in todos if t._desc.find(desc) >= 0 ]
 
-        #if hasattr(args, 'sort'):
-        if args.sort == 'priority':
-            todos = sorted(todos, key = lambda t: t._priority)
-        elif args.sort == 'created':
-            todos = sorted(todos, key = lambda t: t._created)
-        elif args.sort == 'updated':
-            todos = sorted(todos, key = lambda t: t._updated)
-        elif args.sort == 'status':
-            todos = sorted(todos, key = lambda t: t._status)
+        #
+        # sort the remaining todos
+        #
+        if args.sort:
+            todos = sorted(todos, key = lambda t: [ getattr(t, '_'+param) for param in args.sort ] )
         else:
             todos = sorted(todos, key = lambda t: (not(t._priority == 0 and \
                     t.status not in ('finished', 'cancelled')), 
@@ -430,7 +497,7 @@ class ToDoList(object):
             with open(self.path, 'r') as f:
                 self._todos = json.load(f, object_hook = ToDo.from_dict)
         except FileNotFoundError:
-            self.logger.error(f"Couldn't open file '{self.path}'")
+            self.logger.error(f"Couldn't open file {self.path}")
         return self._todos
 
     def __iter__(self):
