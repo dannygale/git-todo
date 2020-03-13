@@ -123,10 +123,12 @@ class ToDo(object):
         return self._status
 
     def __str__(self):
-        return f"[{self.uuid}] [{self.symbol}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:{'['+self._category+']' if self._category else ''} {self._desc}"
+        return f("[{self.uuid}][{self.symbol}]"
+            "{exclam if self._priority == 0 else 'P'+str(self._priority)} "
+            "TODO:{'['+self._category+']' if self._category else ''} {self._desc}")
     def display(self):
         #print(f"[{self.uuid}] [{unicode_symbols[self.status]}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:[{self._category if self._category else ' '}] {self._desc} [{os.path.basename(self._loc[0])}]")
-        print(f"[{self.uuid}] [{unicode_symbols[self.status]}]"
+        print(f"[{self.uuid}][{unicode_symbols[self.status]}]"
             f"{exclam if self._priority == 0 else 'P'+str(self._priority)} "
             f"TODO:[{self._category if self._category else ''}] {self._desc} "
             f"[{os.path.basename(self._loc[0])}]")
@@ -146,7 +148,9 @@ class ToDo(object):
 
         status = status_lookup[match.group('status')]
         todo = cls(description = match.group('desc'), status = status,
-                priority = match.group('priority'), uuid = match.group('uuid'))
+                category = match.group('category'),
+                priority = match.group('priority'), 
+                uuid = match.group('uuid'))
         return todo
     
     @classmethod
@@ -172,9 +176,17 @@ class ToDoList(object):
             root = None,
             fname = '.todo',
             ):
-        self._root = root if root else os.popen('git rev-parse --show-toplevel').read().strip()
+        sp = os.popen('git rev-parse --show-toplevel')#.read().strip()
+        rootdir = sp.read().strip()
+        if sp.close() is not None: 
+            sys.exit("Not in a git repository. Exiting")
+
+        self._root = root if root else rootdir
         self._fname = fname
         self._todos = todos if todos else { }
+
+        logging.basicConfig(stream = sys.stdout)
+        self.logger = logging.getLogger('git-todo')
 
         self.read_todos()
 
@@ -254,9 +266,6 @@ class ToDoList(object):
 
         argcomplete.autocomplete(parser, always_complete_options = False)
         args = parser.parse_args()
-
-        logging.basicConfig(stream = sys.stdout)
-        self.logger = logging.getLogger('git-todo')
 
         self._debug = args.debug
         if self._debug: self.logger.setLevel(logging.DEBUG)
@@ -499,6 +508,8 @@ class ToDoList(object):
                 self._todos = json.load(f, object_hook = ToDo.from_dict)
         except FileNotFoundError:
             self.logger.error(f"Couldn't open file {self.path}")
+        except json.JSONDecodeError:
+            pass
         return self._todos
 
     def __iter__(self):
