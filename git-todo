@@ -463,7 +463,6 @@ class ToDoList(object):
         gitignore = os.path.join(self._root, '.gitignore')
         gitignore = parse_gitignore(gitignore)
 
-    
         # walk the git root
         for dirpath, subdirs, fnames in os.walk(self._root):
             subdirs[:] = set(subdirs) - set([ '.git' ])
@@ -474,8 +473,7 @@ class ToDoList(object):
                 if gitignore(path) or \
                         fname == '.gitignore' or \
                         path == self.path or \
-                        fname.startswith('.'): # path == os.path.abspath(__file__) or 
-                        #os.path.commonpath([ path, gitroot ]) == gitroot or \
+                        fname.startswith('.'): 
                     #self.logger.debug(f"Skipping {path}")
                     continue
                 self.logger.debug(f"Scanning {path}")
@@ -505,5 +503,4 @@ class ToDoList(object):
 
 if __name__ == '__main__':
     ToDoList()
-
 
