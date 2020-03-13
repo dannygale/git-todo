@@ -125,7 +125,11 @@ class ToDo(object):
     def __str__(self):
         return f"[{self.uuid}] [{self.symbol}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:{'['+self._category+']' if self._category else ''} {self._desc}"
     def display(self):
-        print(f"[{self.uuid}] [{unicode_symbols[self.status]}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:{'['+self._category+']' if self._category else ''} {self._desc}")
+        #print(f"[{self.uuid}] [{unicode_symbols[self.status]}]{exclam if self._priority == 0 else 'P'+str(self._priority)} TODO:[{self._category if self._category else ' '}] {self._desc} [{os.path.basename(self._loc[0])}]")
+        print(f"[{self.uuid}] [{unicode_symbols[self.status]}]"
+            f"{exclam if self._priority == 0 else 'P'+str(self._priority)} "
+            f"TODO:[{self._category if self._category else ''}] {self._desc} "
+            f"[{os.path.basename(self._loc[0])}]")
 
     def as_dict(self):
         d = self.__dict__
@@ -373,6 +377,7 @@ class ToDoList(object):
         self.write_todos()
 
     def git_todo_list(self, args):
+
         #
         # Build the list of todos
         #
@@ -497,7 +502,7 @@ class ToDoList(object):
         return self._todos
 
     def __iter__(self):
-        return iter(self._todos)
+        return iter(self._todos.values())
 
 if __name__ == '__main__':
     ToDoList()
