@@ -1,0 +1,9 @@
+[ae37c870][X]P1 TODO: this is a new todo
+[5da7594a][ ]❗️ TODO: testing // this should never happen
+[a539fa96][-]P1 TODO: [ ] this is test // neither should this
+[5f0e8807][ ]P1 TODO:[test2] this is also a test
+[939190cc][-]P1 TODO: make sure this works
+[bbacd150][ ]P2 TODO:[test1] this is a new todo item
+[486c4811][ ]P1 TODO:[testcat] make this a context manager
+[957f6b59][ ]P1 TODO: check if category exists
+[9b486340][ ]P1 TODO: check if branch exists
