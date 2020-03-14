@@ -12,6 +12,7 @@ import fileinput
 import json
 from pprint import pprint, pformat
 import logging
+import tempfile
 
 from enum import Enum
 
@@ -26,7 +27,7 @@ status_symbols = {
         }
 
 unicode_symbols = {
-        "new" : '★',
+        "new" : '+',
         "open" : ' ',
         "in-progress" : '…',
         'finished' : '✔︎',
@@ -47,10 +48,9 @@ status_order = {
         'cancelled' : 4
         }
 
-# [486c4811][ ]P1 TODO:[testcat] make this a context manager
-def replace_lines(dirpath, fname, lines_to_replace, tmp_ext = '.gittodo.bak'):   
-    tmp_name = os.path.join(dirpath,fname+tmp_ext)
-    path = os.path.join(dirpath,fname)
+# [486c4811][ ]P1 TODO: make this a context manager
+def replace_lines(path, lines_to_replace, tmp_ext = '.gittodo.bak'):   
+    tmp_name = os.path.join( os.path.dirname(path), os.path.basename(path) + tmp_ext)
     if os.path.exists(tmp_name):
         raise ValueError
     shutil.move(path, tmp_name)
@@ -83,10 +83,7 @@ Alternatively, a non-whitespace character between the comment character and
 TODO will also force git-todo to ignore the item
 '''
 # https://regex101.com/r/gM4pI1/69
-TODO_REGEX_STR = ("(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*"
-    "(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*"
-    "\s*(P(?P<priority>[0-9]+))*\s*TODO\s*:{,1}\s*"
-    "(\[(?P<category>[^\s]*)\])*[:\s]*(?P<desc>.+)")
+TODO_REGEX_STR = "(?P<ignore>[`]){,1}(?P<comment>(#|(/{2})))+\s*(\[(?P<uuid>[0-9a-f]{8})\]){,1}\s*(\[(?P<status>[\+ -/X])\])*\s*(P(?P<priority>[0-9]+))*\s*TODO\s*:{,1}\s*(\[(?P<category>[^\s]*)\])*[:\s]*(?P<desc>.+)"
 TODO_REGEX = re.compile(TODO_REGEX_STR)
 
 logger = logging.getLogger()
@@ -145,7 +142,7 @@ class ToDo(object):
         print(f"[{self.uuid}][{unicode_symbols[self.status]}]"
             f"{exclam if self._priority == 0 else 'P'+str(self._priority)} "
             f"TODO:[{self._category if self._category else ''}] {self._desc} "
-            f"[{os.path.basename(self._loc[0])}]")
+            f"[{self._loc[0]},{self._loc[1]}]")
 
     def as_dict(self):
         d = self.__dict__
@@ -189,8 +186,14 @@ class ToDo(object):
         if any (group not in groupdict.keys() for group in expected_groups ):
             logger.error(f"{[ g for g in expected_groups if g not in groupdict.keys() ]} not in match: {groupdict}")
 
-        symbol = _ifvalue(match.group('status'))
-        status = status_lookup[match.group('status')] if symbol else 'new'
+        symbol = match.group('status')
+        if symbol == None or symbol == '': # it's new
+            symbol = '+' 
+        elif symbol == '+': # it was new last time
+            symbol = ' '
+        # otherwise don't change it
+
+        status = status_lookup[symbol] 
         todo = cls(status = status,
                 description = _ifvalue(match.group('desc')), 
                 category = _ifvalue(match.group('category')),
@@ -242,34 +245,36 @@ class ToDoList(object):
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--debug', help='Debug mode', action='store_true')
         #parser.add_argument('uuid', type=self.uuid_regex, help='uuid of task to detail', nargs='?').completer = self.uuid_completer
-        parser.set_defaults()#func=self.git_todo_list)
+        parser.set_defaults(func=self.git_todo_list)
         subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
 
+        p_edit = subparsers.add_parser('edit', help='edit several tasks at once')
+        p_edit.set_defaults(func=self.git_todo_list)
+
         p_add = subparsers.add_parser('add', help='add a new todo item')
-        p_add.add_argument('--branch')
+        p_add.add_argument('-b', '--branch')
         p_add.add_argument('-p', '--priority', help='Priority number for the new todo')
         p_add.add_argument('-i', '--important', action='store_true', help='Mark as important (P0)')
         p_add.add_argument('--due', help='Set a due date')
         p_add.add_argument('description', help='The description of the todo item')
         p_add.set_defaults(func=self.git_todo_add)
 
-        p_edit = subparsers.add_parser('edit', help='edit an existing todo item',
-                aliases = ['workon', 'inprogress','finish','cancel','reopen']) 
-        p_edit.add_argument('uuid', help='uuid of todo item to edit').completer = self.uuid_completer
-        p_edit.add_argument('-p','--priority', help='set the priority')
-        p_edit.add_argument('-d','--description', help='set the description')
-        p_edit.add_argument('-s','--status', help='set the status', choices = status_symbols.keys()).completer =self.status_completer
-        p_edit.add_argument('--due', help='set the due date')
-        p_edit.add_argument('-c', '--category', help='set the category').completer = self.category_completer
-        p_edit.add_argument('-b', '--branch', help='set the branch').completer = self.branch_completer
-        p_edit.set_defaults(func=self.git_todo_edit)
+        p_update = subparsers.add_parser('update', help='update an existing todo item',
+                aliases = ['workon', 'inprogress','finish','cancel','reopen'] ) 
+        p_update.add_argument('uuid', help='uuid of todo item to update').completer = self.uuid_completer
+        p_update.add_argument('-p','--priority', help='set the priority')
+        p_update.add_argument('-d','--description', help='set the description')
+        p_update.add_argument('-s','--status', help='set the status', choices = status_symbols.keys()).completer =self.status_completer
+        p_update.add_argument('-c', '--category', help='set the category').completer = self.category_completer
+        p_update.add_argument('-b', '--branch', help='set the branch').completer = self.branch_completer
+        p_update.set_defaults(func=self.git_todo_update)
 
         p_detail = subparsers.add_parser('detail', help='show details of an existing todo item')
         p_detail.add_argument('uuid', help='uuid of todo item to show').completer = self.uuid_completer
         p_detail.set_defaults(func=self.git_todo_detail)
 
         #parser = subparsers.add_parser('list', help='list existing todo items')
-        parser.add_argument('--sort', choices = ['priority', 'created', 'updated', 'status'], action = 'append')
+        parser.add_argument('--sort', choices = ['priority', 'category', 'created', 'updated', 'status'], action = 'append')
 
         # the status types below can be combined to select ONLY todos with one of the spec'ed statuses
         # or --status can be repeated
@@ -295,11 +300,11 @@ class ToDoList(object):
         filter_group.add_argument('-c', '--category', help='filter by category').completer = self.category_completer
         filter_group.add_argument('-p','--priority', help='filter by priority')
         filter_group.add_argument('-b', '--branch', help='filter by branch').completer = self.branch_completer
-        # [e9dfc132][+]P1 TODO: add a 'git-todo search' command
+        # [e9dfc132][ ]P1 TODO: add a 'git-todo search' command
         filter_group.add_argument('-s', '--search', '--description', help='search decriptions for a string', action = 'append', dest='search')
-        filter_group.set_defaults(func=self.git_todo_list)
+        #filter_group.set_defaults(func=self.git_todo_list)
 
-        # [2cd2b9f4][+]P1 TODO: add a 'git-todo update' command to push changes to files. Should this just be part of scan?
+        # [2cd2b9f4][ ]P1 TODO: add a 'git-todo save' command to push changes to files
 
         p_scan = subparsers.add_parser('scan', help='scan files for todo items')
         p_scan.add_argument('-f', '--file', help = 'Scan a specific file')
@@ -361,16 +366,17 @@ class ToDoList(object):
 
             if (t._desc == todo._desc):
                 self.logger.debug("Same uuid and desc. Keeping updated one")
+                todo._updated = datetime.now()
                 self._todos[todo.uuid] = todo # if uuid and description are the same, keep the new one
+
 
             else: #if (todo._loc != t._loc) or (todo._desc != t._desc):
                 self.logger.debug(f"{(t._loc == todo._loc)}, {(t._desc == todo._desc)}, {(t._priority == todo._priority)}" )
-                ans = input(f"Which do you want to keep?\n1. {todo} {todo._loc}\n2. {self._todos[todo.uuid]} {self._todos[todo.uuid]._loc}\n1|2 [1]: ")
-                if ans == '1':
-                    self._todos[todo.uuid] = todo
-                elif ans == '2':
+                ans = input(f"Which do you want to keep?\n1. new: {todo} {todo._loc}\n2. old: {self._todos[todo.uuid]} {self._todos[todo.uuid]._loc}\n1|2 [1]: ")
+                if ans == '2':
                     self._todos[todo.uuid] = t
                 else:
+                    todo._updated = datetime.now()
                     self._todos[todo.uuid] = todo
         else:
             self._todos[todo.uuid] = todo
@@ -389,10 +395,10 @@ class ToDoList(object):
         self.add_todo(t)
         self.write_todos()
         
-    def git_todo_edit(self, args):
+    def git_todo_update(self, args):
         t = self.get_todo(args.uuid)
     
-        if args.subparser_name == 'edit':
+        if args.subparser_name == 'update':
             if args.priority: t._priority = int(args.priority)
             if args.description: t._desc = args.description
             if args.status: t._status = args.status
@@ -426,11 +432,12 @@ class ToDoList(object):
         t = self.get_todo(args.uuid)
 
         print(t)
-        params = ('branch', 'due', 'created', 'updated', 'category')
+        #params = ('branch', 'due', 'created', 'updated', 'category')
+        params = t.__dict__
+        if 'logger' in params: params.pop('logger')
         maxlen = max(len(x) for x in params)
-        for a in params:
-            attr = '_' + a
-            print(f"{a:>{maxlen}}: {getattr(t, attr)}")
+        for attr in params:
+            print(f"{attr.replace('_',''):>{maxlen}}: {t.__dict__[attr]}")
 
     def git_todo_delete(self, args):
         self._todos.pop(args.uuid)
@@ -483,12 +490,30 @@ class ToDoList(object):
                     status_order[t._status], t._priority )
                     )
 
-        for todo in todos:
-            todo.display()
+        if args.subparser_name == 'edit':
+            try:
+                with tempfile.NamedTemporaryFile('w', delete = False) as tf:
+                    name = tf.name
+                    for t in todos:
+                        tf.write('# ' + str(t)+'\n')
 
-    def _scan_file(self, dirpath, fname, inplace=True):
+                self.logger.debug(f"wrote readable todos to tempfile: {name}")
+                
+                EDITOR = os.environ.get('EDITOR', 'vi')
+                subprocess.call([f"{EDITOR}", f"{name}"])
+
+                self._scan_file(name, update_loc = False)
+                self.write_todos()
+            finally:
+                os.remove(name)
+
+        else:
+            for todo in todos:
+                todo.display()
+
+    def _scan_file(self, path, inplace=True, update_loc = True):
+        self.logger.debug(f"Scanning file {path}")
         lines_to_replace = [ ]
-        path = os.path.join(dirpath, fname)
         with open(path) as f:
             for index,line in enumerate(f.readlines()):
                 match = TODO_REGEX.search(line)
@@ -497,14 +522,9 @@ class ToDoList(object):
                     self.logger.debug(f"Found match at {index}")
                     if match.group('ignore'): continue
 
-                    if match.group('status') == None: # it's new
-                        symbol = '+' 
-                    elif match.group('status') == '+': # it was new last time
-                        symbol = ' '
-                    else:
-                        symbol = match.group('status') # otherwise don't change it
+                    p = os.path.relpath(path, start = self._root)
 
-                    t = ToDo.from_match(match, (path, index))
+                    t = ToDo.from_match(match, (p, index))
                     '''
                             (description = match.group('desc'), 
                             status = status_lookup[symbol], 
@@ -513,16 +533,20 @@ class ToDoList(object):
                             )
                     '''
                     self.logger.debug(f"Created todo: {t}")
+                    if not update_loc:
+                        existing_todo = self.get_todo(t.uuid)
+                        t._loc = existing_todo._loc
+                    
                     self.add_todo(t)
                     line = TODO_REGEX.sub(match.group('comment') + ' ' + str(t), line)
                             #line.replace('\n',''))
                     lines_to_replace.append( (index,line) )
 
         if lines_to_replace:
-            replace_lines(dirpath, fname, lines_to_replace)
+            replace_lines(path, lines_to_replace)
 
     def git_todo_scan(self, args):
-        # [ee951cd8][+]P1 TODO: finish implementing ignore_from
+        # [ee951cd8][ ]P1 TODO: finish implementing ignore_from
         if args.ignore_from: ignore_from = parse_gitignore(args.ignore_from)
 
         if args.file: 
@@ -534,7 +558,11 @@ class ToDoList(object):
             if not complete:
                 try: 
                     self._scan_file(os.path.join(self._root, args.file))
+                    complete = True
                 except: pass
+
+            if not complete:
+                raise FileNotFoundError("Could not scan file {args.file}")
             return
     
         gitignore = os.path.join(self._root, '.gitignore')
@@ -553,8 +581,7 @@ class ToDoList(object):
                         fname.startswith('.'): 
                     #self.logger.debug(f"Skipping {path}")
                     continue
-                self.logger.debug(f"Scanning {path}")
-                self._scan_file(dirpath, fname, args.inplace)
+                self._scan_file(os.path.join(dirpath,fname), args.inplace)
 
         self.write_todos()
 

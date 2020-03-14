@@ -5,43 +5,43 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.812699",
-        "updated": "2020-03-14 13:19:46.812699",
+        "created": "2020-03-14 14:51:14.738519",
+        "updated": "2020-03-14 14:51:14.738602",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            49
+            "testdir/testfile",
+            6
         ],
-        "category": "testcat",
+        "category": "",
         "uuid": "486c4811"
     },
     "e9dfc132": {
-        "status": "new",
+        "status": "open",
         "desc": "add a 'git-todo search' command",
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.813972",
-        "updated": "2020-03-14 13:19:46.813972",
+        "created": "2020-03-14 14:51:14.738809",
+        "updated": "2020-03-14 14:51:14.738856",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            297
+            "git-todo",
+            302
         ],
-        "category": "",
+        "category": "commands",
         "uuid": "e9dfc132"
     },
     "2cd2b9f4": {
-        "status": "new",
-        "desc": "add a 'git-todo update' command to push changes to files. Should this just be part of scan?",
+        "status": "open",
+        "desc": "add a 'git-todo save' command to push changes to files",
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.814073",
-        "updated": "2020-03-14 13:19:46.814073",
+        "created": "2020-03-14 14:51:14.739033",
+        "updated": "2020-03-14 14:51:14.739065",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            301
+            "git-todo",
+            306
         ],
-        "category": "",
+        "category": "commands",
         "uuid": "2cd2b9f4"
     },
     "957f6b59": {
@@ -50,13 +50,13 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.814565",
-        "updated": "2020-03-14 13:19:46.814565",
+        "created": "2020-03-14 14:51:14.739173",
+        "updated": "2020-03-14 14:51:14.739205",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            399
+            "testdir/testfile",
+            7
         ],
-        "category": "",
+        "category": "params",
         "uuid": "957f6b59"
     },
     "9b486340": {
@@ -65,28 +65,103 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.814646",
-        "updated": "2020-03-14 13:19:46.814646",
+        "created": "2020-03-14 14:51:14.739315",
+        "updated": "2020-03-14 14:51:14.739356",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            401
+            "testdir/testfile",
+            8
         ],
-        "category": "",
+        "category": "params",
         "uuid": "9b486340"
     },
     "ee951cd8": {
-        "status": "new",
+        "status": "open",
         "desc": "finish implementing ignore_from",
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 13:19:46.815208",
-        "updated": "2020-03-14 13:19:46.815208",
+        "created": "2020-03-14 14:51:14.739519",
+        "updated": "2020-03-14 14:51:14.739545",
         "loc": [
-            "/Users/danny/Documents/Projects/git-todo/src/git-todo",
-            524
+            "git-todo",
+            546
+        ],
+        "category": "params",
+        "uuid": "ee951cd8"
+    },
+    "ae37c870": {
+        "status": "finished",
+        "desc": "this is a new todo",
+        "branch": null,
+        "priority": 1,
+        "due": null,
+        "created": "2020-03-14 14:39:26.465807",
+        "updated": "2020-03-14 14:39:26.465807",
+        "loc": [
+            "testdir/testfile",
+            0
         ],
         "category": "",
-        "uuid": "ee951cd8"
+        "uuid": "ae37c870"
+    },
+    "a539fa96": {
+        "status": "in-progress",
+        "desc": "[ ] this is test // neither should this",
+        "branch": null,
+        "priority": 1,
+        "due": null,
+        "created": "2020-03-14 14:40:42.550773",
+        "updated": "2020-03-14 14:40:42.550773",
+        "loc": [
+            "testdir/testfile",
+            2
+        ],
+        "category": "",
+        "uuid": "a539fa96"
+    },
+    "5f0e8807": {
+        "status": "open",
+        "desc": "this is also a test",
+        "branch": null,
+        "priority": 1,
+        "due": null,
+        "created": "2020-03-14 14:40:42.550507",
+        "updated": "2020-03-14 14:40:42.550507",
+        "loc": [
+            "testdir/testfile",
+            3
+        ],
+        "category": "test2",
+        "uuid": "5f0e8807"
+    },
+    "939190cc": {
+        "status": "in-progress",
+        "desc": "make sure this works",
+        "branch": null,
+        "priority": 1,
+        "due": null,
+        "created": "2020-03-14 14:40:42.550933",
+        "updated": "2020-03-14 14:40:42.550933",
+        "loc": [
+            "testdir/testfile",
+            4
+        ],
+        "category": "",
+        "uuid": "939190cc"
+    },
+    "bbacd150": {
+        "status": "open",
+        "desc": "this is a new todo item",
+        "branch": null,
+        "priority": 2,
+        "due": null,
+        "created": "2020-03-14 14:40:42.550629",
+        "updated": "2020-03-14 14:40:42.550629",
+        "loc": [
+            "testdir/testfile",
+            5
+        ],
+        "category": "test1",
+        "uuid": "bbacd150"
     }
 }
