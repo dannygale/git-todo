@@ -30,15 +30,12 @@ gtg = todo goto
 
 ## Tags
 git-todo uses a regex to pick up todo messages in files. The regex is [TBC]. Even in non-source files, git-todo requires any TODO tag to be behind a one-line comment:
-```
-# TODO: a todo item
-// TODO: another todo item
+`# TODO: a todo item`
+`// TODO: another todo item`
 ```
 Anything to the right of TODO: will be captured as the description of the todo item. The regex is flexible depending on your specific preferences. You can use whitespace or not, you can use a colon after TODO or not. git-todo is expecting to find only one TODO item per line. Once scanned and updated, the two TODO tags above will be transformed to:
-```
-# [1a2b3c4d][+] TODO: a todo item
-// [5e6f7a8b][+] TODO: another todo item
-```
+`# [1a2b3c4d][+] TODO: a todo item`
+`// [5e6f7a8b][+] TODO: another todo item`
 The two tags added between the comment and the TODO tag are a uuid and a status, respectively. The uuid is hashed based on the description, file, and line number. git-todo will use this ID to track the todo item, even if the description changes or the whole thing is moved to a different line, or even a different file. 
 
 The status symbols git-todo understands are:
