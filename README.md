@@ -1,31 +1,40 @@
 # git-todo: Git todo tracking for humans 
 Create and manage todo items on the command line, from TODO tags in files, or through a curses-based terminal-UI (TUI). 
 
-# Installation
+# Installation 
+
 `make install`
 
-git-todo is written in python and has limited external dependencies. To make sure git-todo works system-wide, `make install` will deactivate any virtualenv, `pip install` the dependencies on your system-wide python, install `git-todo` on your path, and reactivate your virtualenv. Git will automatically pick up `git-todo` for any commands starting with `git todo`
+git-todo is written in python and has limited external dependencies. To make sure git-todo works system-wide, `make
+install` will deactivate any virtualenv, `pip install` the dependencies on your system-wide python, install `git-todo`
+on your path, and reactivate your virtualenv. Git will automatically pick up `git-todo` for any commands starting with
+`git todo`
 
-# Usage
-There are three mechanisms to interact with git-todo:
+# Usage 
+There are three ways to interact with git-todo:
 1. command-line only: add, edit, and manage todos from the command line. This will not interact with your source at all
-2. scan source code: You can leave "TODO" tags in comments in your source files. git-todo will scan your source files and identify them, then automatically convert them to full todo tags.
-3. Use the curses terminal UI. 
+2. scan source code: You can leave "TODO" tags in comments in your source files. git-todo will scan your source files
+   and identify them, then automatically convert them to full todo tags.
+3. Use your favorite editor and the `edit` command
 
-The most efficient and powerful is a combination of the three. When editing files, place TODO tags as needed, then scan your files. By default, scan does not modify your source files at all. To get the best use of git-todo, use `git-todo scan --inplace` to automatically convert TODO tags to a format that git-todo will track and not duplicate. From there, the todo items can be managed individually through the command line. If you have a lot of operations to do, it might be more efficient to use the curses interface `git-todo curses`
+The most efficient and powerful is a combination of the three. When editing files, place TODO tags as needed, then scan
+your files. By default, scan does not modify your source files at all. To get the best use of git-todo, use `git-todo
+scan --inplace` to automatically convert TODO tags to a format that git-todo will track and not duplicate. From there,
+the todo items can be managed individually through the command line. If you have a lot of operations to do, it might be
+more efficient to use the curses interface `git-todo curses`
 
 I recommend the following aliases:
 ```
-gt = todo 
-# if you prefer the curses interface, maybe gt = todo curses
-gta = todo add`
-gtw = todo workon
-gtf = todo finish
-gtx = todo cancel
-gte = todo edit
-gtc = todo curses
-gts = todo scan
-gtg = todo goto
+t = todo 
+ta = todo add
+tu = todo update
+te = todo edit
+td = todo detail
+ti = todo inprogress
+tw = todo workon
+tf = todo finish
+tx = todo cancel
+ts = todo scan
 ```
 
 ## Tags

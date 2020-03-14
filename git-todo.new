@@ -173,7 +173,6 @@ class ToDo(object):
         if found:
             replace_line(self._loc[0], self._loc[1], replacement)
 
-
     def as_dict(self):
         d = self.__dict__
         e = {}
@@ -275,7 +274,6 @@ class ToDoList(object):
 
         parser = argparse.ArgumentParser()
         parser.add_argument('-d', '--debug', help='Debug mode', action='store_true')
-        #parser.add_argument('uuid', type=self.uuid_regex, help='uuid of task to detail', nargs='?').completer = self.uuid_completer
         parser.set_defaults(func=self.git_todo_list)
         subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
 

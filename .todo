@@ -5,13 +5,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.738519",
-        "updated": "2020-03-14 14:51:14.738602",
+        "created": "2020-03-14 16:41:43.196980",
+        "updated": "2020-03-14 16:41:43.196980",
         "loc": [
             "testdir/testfile",
             6
         ],
-        "category": "",
+        "category": "testcat",
+        "comment": "#",
         "uuid": "486c4811"
     },
     "e9dfc132": {
@@ -20,13 +21,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.738809",
-        "updated": "2020-03-14 14:51:14.738856",
+        "created": "2020-03-14 16:41:43.192852",
+        "updated": "2020-03-14 16:41:43.192852",
         "loc": [
             "git-todo",
-            302
+            334
         ],
-        "category": "commands",
+        "category": "",
+        "comment": "#",
         "uuid": "e9dfc132"
     },
     "2cd2b9f4": {
@@ -35,13 +37,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.739033",
-        "updated": "2020-03-14 14:51:14.739065",
+        "created": "2020-03-14 16:41:43.192967",
+        "updated": "2020-03-14 16:41:43.192967",
         "loc": [
             "git-todo",
-            306
+            338
         ],
-        "category": "commands",
+        "category": "",
+        "comment": "#",
         "uuid": "2cd2b9f4"
     },
     "957f6b59": {
@@ -50,13 +53,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.739173",
-        "updated": "2020-03-14 14:51:14.739205",
+        "created": "2020-03-14 16:41:43.197071",
+        "updated": "2020-03-14 16:41:43.197071",
         "loc": [
             "testdir/testfile",
             7
         ],
-        "category": "params",
+        "category": "",
+        "comment": "#",
         "uuid": "957f6b59"
     },
     "9b486340": {
@@ -65,13 +69,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.739315",
-        "updated": "2020-03-14 14:51:14.739356",
+        "created": "2020-03-14 16:41:43.197152",
+        "updated": "2020-03-14 16:41:43.197152",
         "loc": [
             "testdir/testfile",
             8
         ],
-        "category": "params",
+        "category": "",
+        "comment": "#",
         "uuid": "9b486340"
     },
     "ee951cd8": {
@@ -80,13 +85,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:51:14.739519",
-        "updated": "2020-03-14 14:51:14.739545",
+        "created": "2020-03-14 16:41:43.194407",
+        "updated": "2020-03-14 16:41:43.194407",
         "loc": [
             "git-todo",
-            546
+            603
         ],
-        "category": "params",
+        "category": "",
+        "comment": "#",
         "uuid": "ee951cd8"
     },
     "ae37c870": {
@@ -95,13 +101,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:39:26.465807",
-        "updated": "2020-03-14 14:39:26.465807",
+        "created": "2020-03-14 16:41:43.196489",
+        "updated": "2020-03-14 16:41:43.196489",
         "loc": [
             "testdir/testfile",
             0
         ],
         "category": "",
+        "comment": "#",
         "uuid": "ae37c870"
     },
     "a539fa96": {
@@ -110,13 +117,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:40:42.550773",
-        "updated": "2020-03-14 14:40:42.550773",
+        "created": "2020-03-14 16:41:43.196597",
+        "updated": "2020-03-14 16:41:43.196597",
         "loc": [
             "testdir/testfile",
             2
         ],
         "category": "",
+        "comment": "#",
         "uuid": "a539fa96"
     },
     "5f0e8807": {
@@ -125,13 +133,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:40:42.550507",
-        "updated": "2020-03-14 14:40:42.550507",
+        "created": "2020-03-14 16:41:43.196702",
+        "updated": "2020-03-14 16:41:43.196702",
         "loc": [
             "testdir/testfile",
             3
         ],
         "category": "test2",
+        "comment": "#",
         "uuid": "5f0e8807"
     },
     "939190cc": {
@@ -140,13 +149,14 @@
         "branch": null,
         "priority": 1,
         "due": null,
-        "created": "2020-03-14 14:40:42.550933",
-        "updated": "2020-03-14 14:40:42.550933",
+        "created": "2020-03-14 16:41:43.196794",
+        "updated": "2020-03-14 16:41:43.196794",
         "loc": [
             "testdir/testfile",
             4
         ],
         "category": "",
+        "comment": "#",
         "uuid": "939190cc"
     },
     "bbacd150": {
@@ -155,13 +165,14 @@
         "branch": null,
         "priority": 2,
         "due": null,
-        "created": "2020-03-14 14:40:42.550629",
-        "updated": "2020-03-14 14:40:42.550629",
+        "created": "2020-03-14 16:41:43.196893",
+        "updated": "2020-03-14 16:41:43.196893",
         "loc": [
             "testdir/testfile",
             5
         ],
         "category": "test1",
+        "comment": "#",
         "uuid": "bbacd150"
     }
 }
